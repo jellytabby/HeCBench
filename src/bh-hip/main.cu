@@ -42,7 +42,7 @@ Emerald Edition, pp. 75-92. January 2011.
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
-#include <sys/time.h>
+#include <chrono>
 #include <hip/hip_runtime.h>
 
 // threads per block
@@ -754,7 +754,6 @@ int main(int argc, char* argv[])
 
   int i;
   int nnodes, step;
-  double runtime;
   float dtime, dthf, epssq, itolsq;
 
   float4 *accVel;
@@ -888,8 +887,7 @@ int main(int argc, char* argv[])
 
   hipDeviceSynchronize();
 
-  struct timeval starttime, endtime;
-  gettimeofday(&starttime, NULL);
+  auto starttime = std::chrono::steady_clock::now();
 
   // run timesteps (launch kernels on a device)
   InitializationKernel<<<1, 1>>>(d_step, d_blkcnt);
@@ -921,11 +919,9 @@ int main(int argc, char* argv[])
   }
   hipDeviceSynchronize();
 
-  gettimeofday(&endtime, NULL);
-  runtime = (endtime.tv_sec + endtime.tv_usec/1000000.0 - 
-             starttime.tv_sec - starttime.tv_usec/1000000.0);
-
-  printf("Total kernel execution time: %.4lf s\n", runtime);
+  auto endtime = std::chrono::steady_clock::now();
+  auto runtime = std::chrono::duration_cast<std::chrono::nanoseconds>(endtime - starttime).count();
+  printf("Total kernel execution time: %.4lf s\n", runtime * 1e-9);
 
   // transfer final results back to a host
   if (hipSuccess != hipMemcpy(accVel, d_accVel, sizeof(float4) * nbodies, hipMemcpyDeviceToHost))
