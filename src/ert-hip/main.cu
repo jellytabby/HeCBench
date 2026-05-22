@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include <sys/time.h>
+#include <chrono>
 
 #define ERT_ALIGN           256
 #define ERT_NUM_EXPERIMENTS 1
@@ -11,15 +11,6 @@
 #define ERT_WSS_MULT        1.3
 
 #include "kernel.h"
-
-double getTime()
-{
-  double time;
-  struct timeval tm;
-  gettimeofday(&tm, NULL);
-  time = tm.tv_sec + (tm.tv_usec / 1000000.0);
-  return time;
-}
 
 template <typename T>
 T *alloc(uint64_t psize)
@@ -105,13 +96,15 @@ int main(int argc, char *argv[])
 
   uint64_t TSIZE = ERT_MEMORY_MAX;
   uint64_t PSIZE = TSIZE;
-  double start, checksum;
+  double checksum;
 
   // FP16
   half2 *hlfbuf = alloc<half2>(PSIZE);
-  start = getTime();
+  auto start = std::chrono::steady_clock::now();
   run<half2>(PSIZE, hlfbuf);
-  printf("runtime (half2): %lf (s)\n", getTime() - start);
+  auto end = std::chrono::steady_clock::now();
+  auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+  printf("runtime (half2): %lf (s)\n", time * 1e-9);
   checksum = 0; 
   for (uint64_t i = 0; i < PSIZE / sizeof(half2); i++) {
     float2 t = __half22float2(hlfbuf[i]);
@@ -122,9 +115,11 @@ int main(int argc, char *argv[])
 
   // FP32
   float *sglbuf = alloc<float>(PSIZE);
-  start = getTime();
+  start = std::chrono::steady_clock::now();
   run<float>(PSIZE, sglbuf);
-  printf("runtime (float): %lf (s)\n", getTime() - start);
+  end = std::chrono::steady_clock::now();
+  time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+  printf("runtime (float): %lf (s)\n", time * 1e-9);
   checksum = 0; 
   for (uint64_t i = 0; i < PSIZE/sizeof(float); i++) {
     checksum += sglbuf[i];
@@ -134,9 +129,11 @@ int main(int argc, char *argv[])
 
   // FP64
   double *dblbuf = alloc<double>(PSIZE);
-  start = getTime();
+  start = std::chrono::steady_clock::now();
   run<double>(PSIZE, dblbuf);
-  printf("runtime (double): %lf (s)\n", getTime() - start);
+  end = std::chrono::steady_clock::now();
+  time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+  printf("runtime (double): %lf (s)\n", time * 1e-9);
   checksum = 0; 
   for (uint64_t i = 0; i < PSIZE/sizeof(double); i++) {
     checksum += dblbuf[i];

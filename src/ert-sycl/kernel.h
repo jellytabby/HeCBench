@@ -1,6 +1,7 @@
 #include <inttypes.h>
 #include <type_traits>
 #include <typeinfo>
+#include <sycl/sycl.hpp>
 #include "rep.h"
 
 int gpu_blocks;
