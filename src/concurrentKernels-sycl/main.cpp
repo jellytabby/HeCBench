@@ -27,16 +27,9 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/time.h>
+#include <chrono>
 #include <vector>
 #include <sycl/sycl.hpp>
-
-
-long get_time() {
-  struct timeval tv;
-  gettimeofday(&tv, NULL);
-  return (tv.tv_sec * 1000000) + tv.tv_usec;
-}
 
 // This is a kernel that does no real work but runs at least for a specified
 // number
@@ -88,8 +81,6 @@ int main(int argc, char **argv) {
 
   printf("[%s] - Starting...\n", argv[0]);
 
-  long start = get_time();
-
   // kernel events
   std::vector<sycl::event> e (nkernels);
 
@@ -104,6 +95,8 @@ int main(int argc, char **argv) {
   long time_clocks = (long)(kernel_time * clock_rate);
 
   printf("time clocks = %ld\n", time_clocks);
+
+  auto start = std::chrono::steady_clock::now();
 
   // queue nkernels with events recorded
   sycl::range<1> gws (1);
@@ -133,8 +126,9 @@ int main(int argc, char **argv) {
   // wait until the GPU is done
   q.memcpy(a, d_a, sizeof(long), e2).wait();
 
-  long end = get_time();
-  printf("Measured time for sample = %.3fs\n", (end-start) / 1e6f);
+  auto end = std::chrono::steady_clock::now();
+  auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+  printf("Measured time for sample = %.3fs\n", time * 1e-9);
 
   // check the result
   long sum = 0;

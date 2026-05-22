@@ -34,14 +34,8 @@
 // Devices of compute capability 2.0 or higher can overlap the kernels
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/time.h>
+#include <chrono>
 #include <cuda.h>
-
-long get_time() {
-  struct timeval tv;
-  gettimeofday(&tv, NULL);
-  return (tv.tv_sec * 1000000) + tv.tv_usec;
-}
 
 // This is a kernel that does no real work but runs at least for a specified
 // number
@@ -90,8 +84,6 @@ int main(int argc, char **argv) {
 
   printf("[%s] - Starting...\n", argv[0]);
 
-  long start = get_time();
-
   cudaDeviceProp deviceProp;
   cudaGetDeviceProperties(&deviceProp, cuda_device);
 
@@ -126,11 +118,11 @@ int main(int argc, char **argv) {
   long time_clocks = (long)(kernel_time * clockRate);
   printf("time clocks = %ld\n", time_clocks);
 
-  long total_clocks = 0;
+  auto start = std::chrono::steady_clock::now();
+
   // queue nkernels in separate streams and record when they are done
   for (int i = 0; i < nkernels; ++i) {
     clock_block<<<1, 1, 0, streams[i]>>>(&d_a[i], time_clocks);
-    total_clocks += time_clocks;
     cudaEventRecord(kernelEvent[i], streams[i]);
 
     // make the last stream wait for the kernel event to be recorded
@@ -149,8 +141,9 @@ int main(int argc, char **argv) {
   // wait until the GPU is done
   cudaDeviceSynchronize();
 
-  long end = get_time();
-  printf("Measured time for sample = %.3fs\n", (end-start) / 1e6f);
+  auto end = std::chrono::steady_clock::now();
+  auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+  printf("Measured time for sample = %.3fs\n", time * 1e-9);
 
   // check the result
   long sum = 0;

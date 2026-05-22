@@ -1,46 +1,41 @@
 /* Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
- 
-  Redistribution and use in source and binary forms, with or without
-  modification, are permitted provided that the following conditions
-  are met:
-   * Redistributions of source code must retain the above copyright
-     notice, this list of conditions and the following disclaimer.
-   * Redistributions in binary form must reproduce the above copyright
-     notice, this list of conditions and the following disclaimer in the
-     documentation and/or other materials provided with the distribution.
-   * Neither the name of NVIDIA CORPORATION nor the names of its
-     contributors may be used to endorse or promote products derived
-     from this software without specific prior written permission.
- 
-  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ``AS IS'' AND ANY
-  EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-  PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
-  CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-  EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-  PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-  PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
-  OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *  * Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ *  * Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *  * Neither the name of NVIDIA CORPORATION nor the names of its
+ *    contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ``AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+ * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 //
 // This sample demonstrates the use of streams for concurrent execution. It also
-// illustrates how to introduce dependencies between HIP streams with the
+// illustrates how to introduce dependencies between CUDA streams with the
 // hipStreamWaitEvent function.
 //
 
+// Devices of compute capability 2.0 or higher can overlap the kernels
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/time.h>
+#include <chrono>
 #include <hip/hip_runtime.h>
-
-long get_time() {
-  struct timeval tv;
-  gettimeofday(&tv, NULL);
-  return (tv.tv_sec * 1000000) + tv.tv_usec;
-}
 
 // This is a kernel that does no real work but runs at least for a specified
 // number
@@ -89,8 +84,6 @@ int main(int argc, char **argv) {
 
   printf("[%s] - Starting...\n", argv[0]);
 
-  long start = get_time();
-
   hipDeviceProp_t deviceProp;
   hipGetDeviceProperties(&deviceProp, hip_device);
 
@@ -120,14 +113,16 @@ int main(int argc, char **argv) {
   }
 
   // time execution with nkernels streams
-  long total_clocks = 0;
-  long time_clocks = (long)(kernel_time * deviceProp.clockRate);
+  int clockRate;
+  hipDeviceGetAttribute(&clockRate, hipDeviceAttributeClockRate, 0);
+  long time_clocks = (long)(kernel_time * clockRate);
   printf("time clocks = %ld\n", time_clocks);
+
+  auto start = std::chrono::steady_clock::now();
 
   // queue nkernels in separate streams and record when they are done
   for (int i = 0; i < nkernels; ++i) {
-    hipLaunchKernelGGL(clock_block, 1, 1, 0, streams[i], &d_a[i], time_clocks);
-    total_clocks += time_clocks;
+    clock_block<<<1, 1, 0, streams[i]>>>(&d_a[i], time_clocks);
     hipEventRecord(kernelEvent[i], streams[i]);
 
     // make the last stream wait for the kernel event to be recorded
@@ -137,7 +132,7 @@ int main(int argc, char **argv) {
   // queue a sum kernel and a copy back to host in the last stream.
   // the commands in this stream get dispatched as soon as all the kernel events
   // have been recorded
-  hipLaunchKernelGGL(sum, 1, 32, 0, streams[nstreams - 1], d_a, nkernels);
+  sum<<<1, 32, 0, streams[nstreams - 1]>>>(d_a, nkernels);
   hipMemcpyAsync(a, d_a, sizeof(long), hipMemcpyDeviceToHost, streams[nstreams - 1]);
 
   // at this point the CPU has dispatched all work for the GPU and can continue
@@ -146,8 +141,9 @@ int main(int argc, char **argv) {
   // wait until the GPU is done
   hipDeviceSynchronize();
 
-  long end = get_time();
-  printf("Measured time for sample = %.3fs\n", (end-start) / 1e6f);
+  auto end = std::chrono::steady_clock::now();
+  auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+  printf("Measured time for sample = %.3fs\n", time * 1e-9);
 
   // check the result
   long sum = 0;
@@ -163,7 +159,7 @@ int main(int argc, char **argv) {
   free(streams);
   free(kernelEvent);
 
-  hipHostFree(a);
+  hipFreeHost(a);
   hipFree(d_a);
 
   return 0;
