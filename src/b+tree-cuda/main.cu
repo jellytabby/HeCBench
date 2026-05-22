@@ -44,7 +44,7 @@
 #include <limits.h>                  // (in directory known to compiler)      needed by INT_MIN, INT_MAX
 #include <math.h>                  // (in directory known to compiler)      needed by log, pow
 #include <string.h>                  // (in directory known to compiler)      needed by memset
-#include <sys/time.h>                  // (in directory known to compiler)      needed by memset
+#include <cuda.h>
 
 //======================================================================================================================================================150
 //  COMMON
@@ -60,7 +60,6 @@
 //  UTILITIES
 //======================================================================================================================================================150
 
-#include "./util/timer/timer.h"            // (in directory provided here)
 #include "./util/num/num.h"              // (in directory provided here)
 
 //======================================================================================================================================================150
@@ -630,9 +629,8 @@ transform_to_cuda(  node * root,
     bool verbose)
 {
 
-  struct timeval one,two;
-  double time;
-  gettimeofday (&one, NULL);
+  auto start = std::chrono::steady_clock::now();
+
   long max_nodes = (long)(pow(order,log(size)/log(order/2.0)-1) + 1);
   malloc_size = size*sizeof(record) + max_nodes*sizeof(knode); 
   mem = (char*)malloc(malloc_size);
@@ -721,11 +719,9 @@ transform_to_cuda(  node * root,
     printf("Number of knodes = %ld, sizeof(knode)=%lu, total=%lu\n",nodeindex,sizeof(knode),(nodeindex)*sizeof(knode));
     printf("\nDone Transformation. Mem used: %ld\n", mem_used);
   }
-  gettimeofday (&two, NULL);
-  double oneD = one.tv_sec + (double)one.tv_usec * .000001;
-  double twoD = two.tv_sec + (double)two.tv_usec * .000001;
-  time = twoD-oneD;
-  printf("Tree transformation took %f\n", time);
+  auto end = std::chrono::steady_clock::now();
+  auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+  printf("Tree transformation took %f (s)\n", time * 1e-9);
 
   return mem_used;
 

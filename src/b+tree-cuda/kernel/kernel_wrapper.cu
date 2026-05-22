@@ -1,7 +1,6 @@
-#include <cuda.h>
 #include <stdio.h>
+#include <cuda.h>
 #include "../common.h"
-#include "../util/timer/timer.h"
 #include "./kernel.cu"
 #include "./kernel_wrapper.h"        // (in current directory)
 
@@ -108,7 +107,7 @@ kernel_wrapper(record *records,
   cudaMemcpyAsync(ansD, ans, count*sizeof(record), cudaMemcpyHostToDevice, 0);
 
   cudaDeviceSynchronize();
-  long long kernel_start = get_time();
+  auto kstart = std::chrono::steady_clock::now();
 
   findK<<<numBlocks, threadsPerBlock>>>(  maxheight,
       knodesD,
@@ -120,8 +119,9 @@ kernel_wrapper(record *records,
       ansD);
 
   cudaDeviceSynchronize();
-  long long kernel_end = get_time();
-  printf("Kernel execution time: %f (us)\n", (float)(kernel_end-kernel_start));
+  auto kend = std::chrono::steady_clock::now();
+  auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(kend - kstart).count();
+  printf("Kernel execution time: %f (us)\n", time * 1e-3);
 
   cudaMemcpy(ans, ansD, count*sizeof(record), cudaMemcpyDeviceToHost);
 

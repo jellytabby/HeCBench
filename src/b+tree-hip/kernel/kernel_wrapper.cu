@@ -1,7 +1,6 @@
-#include <hip/hip_runtime.h>
 #include <stdio.h>
+#include <hip/hip_runtime.h>
 #include "../common.h"
-#include "../util/timer/timer.h"
 #include "./kernel.cu"
 #include "./kernel_wrapper.h"        // (in current directory)
 
@@ -108,7 +107,7 @@ kernel_wrapper(record *records,
   hipMemcpyAsync(ansD, ans, count*sizeof(record), hipMemcpyHostToDevice, 0);
 
   hipDeviceSynchronize();
-  long long kernel_start = get_time();
+  auto kstart = std::chrono::steady_clock::now();
 
   findK<<<numBlocks, threadsPerBlock>>>(  maxheight,
       knodesD,
@@ -120,8 +119,9 @@ kernel_wrapper(record *records,
       ansD);
 
   hipDeviceSynchronize();
-  long long kernel_end = get_time();
-  printf("Kernel execution time: %f (us)\n", (float)(kernel_end-kernel_start));
+  auto kend = std::chrono::steady_clock::now();
+  auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(kend - kstart).count();
+  printf("Kernel execution time: %f (us)\n", time * 1e-3);
 
   hipMemcpy(ans, ansD, count*sizeof(record), hipMemcpyDeviceToHost);
 

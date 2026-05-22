@@ -1,7 +1,6 @@
-#include <cuda.h>
 #include <stdio.h>
+#include <cuda.h>
 #include "../common.h"
-#include "../util/timer/timer.h"
 #include "./kernel2.cu"
 #include "./kernel2_wrapper.h"
 
@@ -23,8 +22,6 @@ kernel2_wrapper(  knode *knodes,
     int *recstart,
     int *reclength)
 {
-
-  long long offload_start = get_time();
 
   //====================================================================================================100
   //  EXECUTION PARAMETERS
@@ -120,7 +117,7 @@ kernel2_wrapper(  knode *knodes,
   cudaMemcpyAsync(ansDLength, reclength, count*sizeof(int), cudaMemcpyHostToDevice, 0);
 
   cudaDeviceSynchronize();
-  long long kernel_start = get_time();
+  auto kstart = std::chrono::steady_clock::now();
    
   // [GPU] findRangeK kernel
   findRangeK<<<numBlocks, threadsPerBlock>>>(  maxheight,
@@ -136,8 +133,9 @@ kernel2_wrapper(  knode *knodes,
       ansDLength);
 
   cudaDeviceSynchronize();
-  long long kernel_end = get_time();
-  printf("Kernel execution time: %f (us)\n", (float)(kernel_end-kernel_start));
+  auto kend = std::chrono::steady_clock::now();
+  auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(kend - kstart).count();
+  printf("Kernel execution time: %f (us)\n", time * 1e-3);
 
   cudaMemcpyAsync(recstart, ansDStart, count*sizeof(int), cudaMemcpyDeviceToHost, 0);
 

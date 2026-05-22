@@ -1,7 +1,6 @@
 #include <string.h>
 #include <stdio.h>
 #include "b+tree.h"
-#include "timer.h"
 #include "kernel_wrapper.h"
 
 
@@ -57,7 +56,7 @@ kernel_wrapper(
 #endif
 
   q.wait();
-  long long kernel_start = get_time();
+  auto kstart = std::chrono::steady_clock::now();
 
   q.submit([&](sycl::handler& cgh) {
     cgh.parallel_for<class findK>(sycl::nd_range<1>(
@@ -67,7 +66,9 @@ kernel_wrapper(
     });
   }).wait();
 
-  long long kernel_end = get_time();
+  auto kend = std::chrono::steady_clock::now();
+  auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(kend - kstart).count();
+  printf("Kernel execution time: %f (us)\n", time * 1e-3);
 
   q.memcpy(ans, ansD_acc, count*sizeof(record)).wait();
 
@@ -83,7 +84,5 @@ kernel_wrapper(
     printf("ans[%d] = %d\n", i, ans[i].value);
   printf("\n");
 #endif
-
-  printf("Kernel execution time: %f (us)\n", (float)(kernel_end-kernel_start));
 }
 

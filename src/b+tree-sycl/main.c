@@ -27,7 +27,6 @@
 #include <string.h> // memset
 #include <sycl/sycl.hpp>
 #include "b+tree.h"
-#include "timer.h"
 #include "num.h"
 #include "kernel_wrapper.h"
 #include "kernel2_wrapper.h"
@@ -500,9 +499,8 @@ void * kmalloc(int size)
 //transforms the current B+ Tree into a single, contiguous block of memory to be used on the GPU
 long transform_to_cuda(  node * root, bool verbose)
 {
-  struct timeval one,two;
-  double time;
-  gettimeofday (&one, NULL);
+  auto start = std::chrono::steady_clock::now();
+
   long max_nodes = (long)(std::pow(order,std::log(size)/std::log(order/2.0)-1) + 1);
   malloc_size = size*sizeof(record) + max_nodes*sizeof(knode); 
   mem = (char*)malloc(malloc_size);
@@ -581,11 +579,9 @@ long transform_to_cuda(  node * root, bool verbose)
     printf("Number of knodes = %ld, sizeof(knode)=%lu, total=%lu\n",nodeindex,sizeof(knode),(nodeindex)*sizeof(knode));
     printf("\nDone Transformation. Mem used: %ld\n", mem_used);
   }
-  gettimeofday (&two, NULL);
-  double oneD = one.tv_sec + (double)one.tv_usec * .000001;
-  double twoD = two.tv_sec + (double)two.tv_usec * .000001;
-  time = twoD-oneD;
-  printf("Tree transformation took %f\n", time);
+  auto end = std::chrono::steady_clock::now();
+  auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+  printf("Tree transformation took %f (s)\n", time * 1e-9);
 
   return mem_used;
 }
