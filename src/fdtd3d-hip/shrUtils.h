@@ -31,7 +31,6 @@
     // Headers needed for Linux
     #include <sys/stat.h>
     #include <sys/types.h>
-    #include <sys/time.h>
     #include <stdio.h>
     #include <stdlib.h>
     #include <string.h>
