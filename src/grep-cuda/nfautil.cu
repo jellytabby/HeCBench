@@ -505,11 +505,3 @@ void visualize_nfa(State * start) {
   visualize_nfa_help(start);
   printf("]\n");
 }
-
-double gettime()
-{
-  struct timeval tv;
-  gettimeofday(&tv, NULL);
-  return tv.tv_sec + tv.tv_usec / 1000000.0;
-}
-
