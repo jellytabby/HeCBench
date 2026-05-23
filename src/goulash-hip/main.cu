@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include <sys/time.h>
+#include <chrono>
 #include <hip/hip_runtime.h>
 #include "utils.h"
 
@@ -84,22 +84,22 @@ int main(int argc, char* argv[])
   dim3 gridSize ((nCells + 255)/256);
   dim3 blockSize (256);
 
-  double kernel_starttime, kernel_endtime, kernel_runtime;
+  std::chrono::steady_clock::time_point start, end;
 
   for (long itime=0; itime<=iterations; itime++) {
     /* Start timer after warm-up iteration 0 */
     if (itime == 1) {
       HIPCHECK(hipMemcpy(m_gate, d_m_gate, sizeof(double)*nCells, hipMemcpyDeviceToHost));
-      kernel_starttime = secs_elapsed();
+      start = std::chrono::steady_clock::now();
     }
 
-    hipLaunchKernelGGL(gate, gridSize, blockSize, 0, 0, d_m_gate, nCells, d_Vm);
+    gate<<<gridSize, blockSize>>>(d_m_gate, nCells, d_Vm);
   }
 
   hipDeviceSynchronize();
-  kernel_endtime = secs_elapsed();
-  kernel_runtime = kernel_endtime-kernel_starttime;
-  printf("total kernel time %lf(s) for %ld iterations\n", kernel_runtime, iterations-1);
+  end = std::chrono::steady_clock::now();
+  auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+  printf("total kernel time %lf(s) for %ld iterations\n", time * 1e-9, iterations-1);
 
   HIPCHECK(hipFree(d_Vm));
   HIPCHECK(hipFree(d_m_gate));

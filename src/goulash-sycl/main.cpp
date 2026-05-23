@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include <sys/time.h>
+#include <chrono>
 #include <sycl/sycl.hpp>
 #include "utils.h"
 
@@ -85,13 +85,13 @@ int main(int argc, char* argv[])
   sycl::range<1> gws ((nCells + 255)/256*256);
   sycl::range<1> lws (256);
 
-  double kernel_starttime, kernel_endtime, kernel_runtime;
+  std::chrono::steady_clock::time_point start, end;
 
   for (long itime=0; itime<=iterations; itime++) {
     /* Start timer after warm-up iteration 0 */
     if (itime == 1) {
       q.memcpy(m_gate, d_m_gate, sizeof(double) * nCells).wait();
-      kernel_starttime = secs_elapsed();
+      start = std::chrono::steady_clock::now();
     }
 
     q.submit([&] (sycl::handler &cgh) {
@@ -103,9 +103,9 @@ int main(int argc, char* argv[])
   }
 
   q.wait();
-  kernel_endtime = secs_elapsed();
-  kernel_runtime = kernel_endtime-kernel_starttime;
-  printf("total kernel time %lf(s) for %ld iterations\n", kernel_runtime, iterations-1);
+  end = std::chrono::steady_clock::now();
+  auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+  printf("total kernel time %lf(s) for %ld iterations\n", time * 1e-9, iterations-1);
 
   sycl::free(d_Vm, q);
   sycl::free(d_m_gate, q);
