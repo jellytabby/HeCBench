@@ -3,6 +3,6 @@
 add_hecbench_benchmark(
     NAME lavaMD
     MODEL omp
-    SOURCES main.cpp ./util/num/num.cpp ./util/timer/timer.cpp
+    SOURCES main.cpp ./util/num/num.cpp
     CATEGORIES algorithms
 )

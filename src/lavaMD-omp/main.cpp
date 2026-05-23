@@ -4,7 +4,7 @@
 #include <string.h>
 #include <omp.h>
 #include <math.h>
-#include "./util/timer/timer.h"
+#include <chrono>
 #include "./util/num/num.h"
 #include "main.h"
 
@@ -179,8 +179,8 @@ int main(int argc, char *argv [])
     fv_cpu[i].z = 0;                // set to 0, because kernels keeps adding to initial value
   }
 
-  long long kstart, kend;
-  long long start = get_time();
+  std::chrono::steady_clock::time_point kstart, kend;
+  auto start = std::chrono::steady_clock::now();
 
   // only the member number_boxes is used in the kernel
   int dim_cpu_number_boxes = dim_cpu.number_boxes;
@@ -190,7 +190,7 @@ int main(int argc, char *argv [])
                                 qv_cpu[0:dim_cpu.space_elem]) \
                         map(tofrom: fv_cpu[0:dim_cpu.space_elem])
 {
-  kstart = get_time();
+  kstart = std::chrono::steady_clock::now();
   #pragma omp target teams num_teams(dim_cpu_number_boxes) thread_limit(NUMBER_THREADS)
   {
     FOUR_VECTOR rA_shared[100];
@@ -328,15 +328,17 @@ int main(int argc, char *argv [])
       }
     }
   }
-  kend = get_time();
+  kend = std::chrono::steady_clock::now();
 }
 
-  long long end = get_time();
+  auto end = std::chrono::steady_clock::now();
+  auto ktime = std::chrono::duration_cast<std::chrono::nanoseconds>(kend - kstart).count();
+  auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
   printf("Device offloading time:\n"); 
-  printf("%.12f s\n", (float) (end-start) / 1000000);
+  printf("%.12f s\n", time * 1e-9);
 
   printf("Kernel execution time:\n"); 
-  printf("%.12f s\n", (float) (kend-kstart) / 1000000); 
+  printf("%.12f s\n", ktime * 1e-9);
 
 #ifdef DEBUG
   int offset = 395;

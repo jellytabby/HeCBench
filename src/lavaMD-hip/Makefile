@@ -15,7 +15,7 @@ LAUNCHER  =
 
 program = main
 
-source = main.cu ./util/num/num.cu ./util/timer/timer.cu
+source = main.cu ./util/num/num.cu
 
 obj = $(source:.cu=.o)
 
@@ -57,8 +57,6 @@ $(program): $(obj) Makefile
 main.o:	main.cu main.h kernel.h
 
 ./util/num/num.o: ./util/num/num.cu ./util/num/num.h 
-
-./util/timer/timer.o: ./util/timer/timer.cu ./util/timer/timer.h 
 
 clean:
 	rm -rf $(program) $(obj)

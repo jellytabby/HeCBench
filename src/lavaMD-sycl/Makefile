@@ -23,7 +23,7 @@ HIP_ARCH  = gfx908
 
 program = main
 
-source = main.cpp ./util/num/num.cpp ./util/timer/timer.cpp
+source = main.cpp ./util/num/num.cpp
 
 obj = $(source:.cpp=.o)
 
@@ -84,8 +84,6 @@ $(program): $(obj)
 main.o:	main.cpp main.h kernel.sycl
 
 ./util/num/num.o: ./util/num/num.cpp ./util/num/num.h 
-
-./util/timer/timer.o: ./util/timer/timer.cpp ./util/timer/timer.h 
 
 clean:
 	rm -rf $(program) $(obj)

@@ -2,8 +2,8 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
+#include <chrono>
 #include <hip/hip_runtime.h>
-#include "./util/timer/timer.h"
 #include "./util/num/num.h"
 #include "./main.h"
 #include "kernel.h"
@@ -172,7 +172,7 @@ int main(  int argc, char *argv [])
     fv_cpu[i].z = 0;                // set to 0, because kernels keeps adding to initial value
   }
 
-  long long start = get_time();
+  auto start = std::chrono::steady_clock::now();
 
   int dim_cpu_number_boxes = dim_cpu.number_boxes;
 
@@ -196,13 +196,13 @@ int main(  int argc, char *argv [])
   hipMemcpy(d_fv_gpu, fv_cpu, dim_cpu.space_mem, hipMemcpyHostToDevice); 
 
   hipDeviceSynchronize();
-  long long kstart = get_time();
+  auto kstart = std::chrono::steady_clock::now();
 
-  hipLaunchKernelGGL(md, dim_cpu_number_boxes, NUMBER_THREADS, 0, 0, 
+  md<<<dim_cpu_number_boxes, NUMBER_THREADS>>>(
     d_box_gpu, d_rv_gpu, d_qv_gpu, d_fv_gpu, par_cpu.alpha, dim_cpu_number_boxes);
 
   hipDeviceSynchronize();
-  long long kend = get_time();
+  auto kend = std::chrono::steady_clock::now();
 
   hipMemcpy(fv_cpu, d_fv_gpu, dim_cpu.space_mem, hipMemcpyDeviceToHost); 
 
@@ -211,12 +211,14 @@ int main(  int argc, char *argv [])
   hipFree(d_qv_gpu);
   hipFree(d_fv_gpu);
 
-  long long end = get_time();
+  auto end = std::chrono::steady_clock::now();
+  auto ktime = std::chrono::duration_cast<std::chrono::nanoseconds>(kend - kstart).count();
+  auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
   printf("Device offloading time:\n"); 
-  printf("%.12f s\n", (float) (end-start) / 1000000); 
+  printf("%.12f s\n", time * 1e-9);
 
   printf("Kernel execution time:\n"); 
-  printf("%.12f s\n", (float) (kend-kstart) / 1000000); 
+  printf("%.12f s\n", ktime * 1e-9);
 
   // dump results
 #ifdef OUTPUT
