@@ -8,7 +8,7 @@
 #include <tuple>
 #include <algorithm>
 #include <sys/resource.h>
-#include <sys/time.h>
+#include <chrono>
 #include <string>
 
 #include <boost/program_options.hpp>
