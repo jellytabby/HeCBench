@@ -43,9 +43,6 @@
 #include <unistd.h>
 #include <iostream>
 
-extern double wtime(void);
-
-
 
 /*---< usage() >------------------------------------------------------------*/
 void usage(char *argv0) {

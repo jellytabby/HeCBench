@@ -16,8 +16,6 @@
 #include <math.h>
 #include "kmeans.h"
 
-extern double wtime(void);
-
 /*----< euclid_dist_2() >----------------------------------------------------*/
 /* multi-dimensional spatial Euclid distance square */
 __inline

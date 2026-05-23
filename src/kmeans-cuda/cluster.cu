@@ -10,7 +10,6 @@
 #include "kmeans.h"
 
 float	min_rmse_ref = FLT_MAX;		
-extern double wtime(void);
 /* reference min_rmse value */
 
 // copy the feature to a feature swap region
