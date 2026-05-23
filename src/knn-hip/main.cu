@@ -11,7 +11,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/time.h>
+#include <chrono>
 #include <hip/hip_runtime.h>
 
 // Constants used by the program
@@ -67,8 +67,7 @@ void cuComputeDistanceGlobal(const float *__restrict__ A,
   int cond0 = (begin_A + tx < wA); // used to write in shared memory
   int cond1 = (begin_B + tx < wB); // used to write in shared memory & to
                                    // computations and to write in output matrix
-  int cond2 =
-      (begin_A + ty < wA); // used to computations and to write in output matrix
+  int cond2 = (begin_A + ty < wA); // used to computations and to write in output matrix
 
   // Loop over all the sub-matrices of A and B required to compute the block
   // sub-matrix
@@ -263,7 +262,7 @@ void knn_parallel(float *ref_host, int ref_width, float *query_host,
   dim3 t_k_16x16(16, 16, 1);
 
   // Kernel 1: Compute all the distances
-  hipLaunchKernelGGL(cuComputeDistanceGlobal, g_16x16, t_16x16, 0, 0, ref_dev, ref_width, query_dev,
+  cuComputeDistanceGlobal<<<g_16x16, t_16x16>>>(ref_dev, ref_width, query_dev,
                                                 query_width, height, dist_dev);
 
 #ifdef DEBUG
@@ -275,7 +274,7 @@ void knn_parallel(float *ref_host, int ref_width, float *query_host,
 #endif
 
   // Kernel 2: Sort each column
-  hipLaunchKernelGGL(cuInsertionSort, g_256x1, t_256x1, 0, 0, dist_dev, ind_dev, query_width,
+  cuInsertionSort<<<g_256x1, t_256x1>>>(dist_dev, ind_dev, query_width,
                                         ref_width, k);
 
 #ifdef DEBUG
@@ -292,7 +291,7 @@ void knn_parallel(float *ref_host, int ref_width, float *query_host,
 #endif
 
   // Kernel 3: Compute square root of k first elements
-  hipLaunchKernelGGL(cuParallelSqrt, g_k_16x16, t_k_16x16, 0, 0, dist_dev, query_width, k);
+  cuParallelSqrt<<<g_k_16x16, t_k_16x16>>>(dist_dev, query_width, k);
   hipDeviceSynchronize();
   // Memory copy of output from device to host
   hipMemcpy(dist_host, dist_dev, query_width * k * size_of_float,
@@ -428,7 +427,6 @@ int main(int argc, char* argv[]) {
   for (i = 0; i < query_nb * dim; i++)
     query[i] = (float)rand() / (float)RAND_MAX;
 
-
   // Display informations
   printf("Number of reference points      : %6d\n", ref_nb);
   printf("Number of query points          : %6d\n", query_nb);
@@ -447,31 +445,25 @@ int main(int argc, char* argv[]) {
     return EXIT_FAILURE;
   }
 
-  struct timeval tic;
-  struct timeval toc;
-  float elapsed_time;
-
   printf("On CPU: \n");
-  gettimeofday(&tic, NULL);
+  auto start = std::chrono::steady_clock::now();
   for (i = 0; i < c_iterations; i++) {
     knn_c(ref, ref_nb, query, query_nb, dim, k, dist, ind);
   }
-  gettimeofday(&toc, NULL);
-  elapsed_time = toc.tv_sec - tic.tv_sec;
-  elapsed_time += (toc.tv_usec - tic.tv_usec) / 1000000.;
-  printf(" done in %f s for %d iterations (%f s by iteration)\n", elapsed_time,
-         c_iterations, elapsed_time / (c_iterations));
+  auto end = std::chrono::steady_clock::now();
+  auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+  printf(" done in %f s for %d iterations (%f s by iteration)\n", time * 1e-9,
+         c_iterations, time * 1e-9 / (c_iterations));
 
   printf("on GPU: \n");
-  gettimeofday(&tic, NULL);
+  start = std::chrono::steady_clock::now();
   for (i = 0; i < iterations; i++) {
     knn_parallel(ref, ref_nb, query, query_nb, dim, k, dist, ind);
   }
-  gettimeofday(&toc, NULL);
-  elapsed_time = toc.tv_sec - tic.tv_sec;
-  elapsed_time += (toc.tv_usec - tic.tv_usec) / 1000000.;
-  printf(" done in %f s for %d iterations (%f s by iteration)\n", elapsed_time,
-         iterations, elapsed_time / (iterations));
+  end = std::chrono::steady_clock::now();
+  time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+  printf(" done in %f s for %d iterations (%f s by iteration)\n", time * 1e-9,
+         c_iterations, time * 1e-9 / (c_iterations));
 
   for (int i = 0; i < query_nb * k; ++i) {
     if (fabs(dist[i] - knn_dist[i]) <= precision) {

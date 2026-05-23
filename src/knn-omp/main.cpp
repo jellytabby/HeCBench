@@ -11,7 +11,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/time.h>
+#include <chrono>
 #include <omp.h>
 
 // Constants used by the program
@@ -156,24 +156,18 @@ int main(int argc, char* argv[]) {
     return EXIT_FAILURE;
   }
 
-  struct timeval tic;
-  struct timeval toc;
-  float elapsed_time;
-
   printf("On CPU: \n");
-  gettimeofday(&tic, NULL);
+  auto start = std::chrono::steady_clock::now();
   for (i = 0; i < c_iterations; i++) {
     knn_serial(ref, ref_nb, query, query_nb, dim, k, dist, ind);
   }
-  gettimeofday(&toc, NULL);
-  elapsed_time = toc.tv_sec - tic.tv_sec;
-  elapsed_time += (toc.tv_usec - tic.tv_usec) / 1000000.;
-  printf(" done in %f s for %d iterations (%f s by iteration)\n", elapsed_time,
-         c_iterations, elapsed_time / (c_iterations));
+  auto end = std::chrono::steady_clock::now();
+  auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+  printf(" done in %f s for %d iterations (%f s by iteration)\n", time * 1e-9,
+         c_iterations, time * 1e-9 / (c_iterations));
 
   printf("on GPU: \n");
-  gettimeofday(&tic, NULL);
-
+  start = std::chrono::steady_clock::now();
   for (i = 0; i < iterations; i++) {
     #pragma omp target data map(to: ref[0:ref_nb * dim], query[0:query_nb * dim]) \
                           map(alloc: dist[0:query_nb * ref_nb], ind[0:query_nb * k])
@@ -309,12 +303,10 @@ int main(int argc, char* argv[]) {
       #pragma omp target update from (ind[0:query_nb * k])
     }
   }
-
-  gettimeofday(&toc, NULL);
-  elapsed_time = toc.tv_sec - tic.tv_sec;
-  elapsed_time += (toc.tv_usec - tic.tv_usec) / 1000000.;
-  printf(" done in %f s for %d iterations (%f s by iteration)\n", elapsed_time,
-         iterations, elapsed_time / (iterations));
+  end = std::chrono::steady_clock::now();
+  time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+  printf(" done in %f s for %d iterations (%f s by iteration)\n", time * 1e-9,
+         c_iterations, time * 1e-9 / (c_iterations));
 
   for (int i = 0; i < query_nb * k; ++i) {
     if (fabs(dist[i] - knn_dist[i]) <= precision) {
