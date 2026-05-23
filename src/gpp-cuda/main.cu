@@ -70,9 +70,7 @@ int main(int argc, char **argv) {
   size_t memFootPrint = 0;
 
   // Start the timer before the work begins.
-  dataType elapsedTimer;
-  timeval startTimer, endTimer;
-  gettimeofday(&startTimer, NULL);
+  auto start = std::chrono::steady_clock::now();
 
   CustomComplex<dataType> *achtemp;
   achtemp = (CustomComplex<dataType> *)safe_malloc(
@@ -193,7 +191,7 @@ int main(int argc, char **argv) {
          "(%d,%d,%d), and threads = (%d,%d,%d) \n",
          number_bands, ngpown, 1, 32, 1, 1);
 
-  float total_time = 0.f;
+  long total_ktime = 0;
 
   for (int i = 0; i < 10; i++) {
     // Reset the atomic sums
@@ -203,7 +201,7 @@ int main(int argc, char **argv) {
                achtemp_im_size * sizeof(dataType), cudaMemcpyHostToDevice);
 
     cudaDeviceSynchronize();
-    auto start = std::chrono::steady_clock::now();
+    auto kstart = std::chrono::steady_clock::now();
 
     solver<<<grid, threads>>>(
         number_bands, ngpown, ncouls, d_inv_igp_index, d_indinv, d_wx_array,
@@ -211,12 +209,11 @@ int main(int argc, char **argv) {
         d_achtemp_im);
 
     cudaDeviceSynchronize();
-    auto end = std::chrono::steady_clock::now();
-    auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-    total_time += time;
+    auto kend = std::chrono::steady_clock::now();
+    total_ktime += std::chrono::duration_cast<std::chrono::nanoseconds>(kend - kstart).count();
   }
 
-  printf("Average kernel execution time %f (s)\n", (total_time * 1e-9f) / 10.f);
+  printf("Average kernel execution time %f (s)\n", (total_ktime * 1e-9) / 10);
 
   cudaMemcpy(achtemp_re, d_achtemp_re,
              achtemp_re_size * sizeof(dataType), cudaMemcpyDeviceToHost);
@@ -263,11 +260,9 @@ int main(int argc, char **argv) {
   cudaFree(d_achtemp_im);
   cudaFree(d_wx_array);
 
-  gettimeofday(&endTimer, NULL);
-  elapsedTimer = (endTimer.tv_sec - startTimer.tv_sec) +
-                 1e-6 * (endTimer.tv_usec - startTimer.tv_usec);
-
-  std::cout << "********** Total Time Taken **********= " << elapsedTimer << " secs"
+  auto end = std::chrono::steady_clock::now();
+  auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+  std::cout << "********** Total Time Taken **********= " << time * 1e-9 << " secs"
             << std::endl;
   return 0;
 }

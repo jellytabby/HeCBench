@@ -11,7 +11,6 @@
 #include <iomanip>
 #include <iostream>
 #include <memory>
-#include <sys/time.h>
 
 #if defined(__NVCC__) || defined(__HIPCC__)
 #define ESS __host__ __device__

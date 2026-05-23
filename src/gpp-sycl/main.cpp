@@ -56,11 +56,6 @@ int main(int argc, char **argv) {
   const dataType to1 = 1e-6;
   const dataType e_n1kq = 6.0;
 
-  // Start the timer before the work begins.
-  dataType elapsedKernelTimer, elapsedTimer;
-  timeval startTimer, endTimer;
-  gettimeofday(&startTimer, NULL);
-
   // Printing out the params passed.
   std::cout << "Sizeof(CustomComplex<dataType> = "
             << sizeof(CustomComplex<dataType>) << " bytes" << std::endl;
@@ -73,6 +68,9 @@ int main(int argc, char **argv) {
   CustomComplex<dataType> expr0(0.0, 0.0);
   CustomComplex<dataType> expr(0.025, 0.025);
   size_t memFootPrint = 0;
+
+  // Start the timer before the work begins.
+  auto start = std::chrono::steady_clock::now();
 
   CustomComplex<dataType> *achtemp;
   achtemp = (CustomComplex<dataType> *)safe_malloc(
@@ -191,17 +189,13 @@ int main(int argc, char **argv) {
   q.memcpy(d_inv_igp_index, inv_igp_index, inv_igp_index_size * sizeof(int));
   q.memcpy(d_indinv, indinv, indinv_size * sizeof(int));
 
-  // Time the kernel execution
-  timeval startKernelTimer, endKernelTimer;
-  gettimeofday(&startKernelTimer, NULL);
-
   sycl::range<3> gws(1, ngpown, 32 * number_bands);
   sycl::range<3> lws(1, 1, 32);
   printf("Launching a kernel with global work size = "
          "(%d,%d,%d), and local work size = (%d,%d,%d) \n",
          number_bands * 32, ngpown, 1, 32, 1, 1);
 
-  float total_time = 0.f;
+  long total_ktime = 0;
 
   for (int i = 0; i < 10; i++) {
     // Reset the atomic sums
@@ -209,7 +203,7 @@ int main(int argc, char **argv) {
     q.memcpy(d_achtemp_im, achtemp_im, achtemp_im_size * sizeof(dataType));
 
     q.wait();
-    auto start = std::chrono::steady_clock::now();
+    auto kstart = std::chrono::steady_clock::now();
 
     q.submit([&] (sycl::handler &cgh) {
       cgh.parallel_for<class gpp_kernel>(
@@ -220,22 +214,15 @@ int main(int argc, char **argv) {
       });
     }).wait();
 
-    auto end = std::chrono::steady_clock::now();
-    auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-    total_time += time;
+    auto kend = std::chrono::steady_clock::now();
+    total_ktime += std::chrono::duration_cast<std::chrono::nanoseconds>(kend - kstart).count();
   }
 
-  printf("Average kernel execution time %f (s)\n", (total_time * 1e-9f) / 10.f);
+  printf("Average kernel execution time %f (s)\n", (total_ktime * 1e-9) / 10);
 
   q.memcpy(achtemp_re, d_achtemp_re, achtemp_re_size * sizeof(dataType));
   q.memcpy(achtemp_im, d_achtemp_im, achtemp_im_size * sizeof(dataType));
   q.wait();
-
-  gettimeofday(&endKernelTimer, NULL);
-
-  elapsedKernelTimer =
-      (endKernelTimer.tv_sec - startKernelTimer.tv_sec) +
-      1e-6 * (endKernelTimer.tv_usec - startKernelTimer.tv_usec);
 
   for (int iw = nstart; iw < nend; ++iw)
     achtemp[iw] = CustomComplex<dataType>(achtemp_re[iw], achtemp_im[iw]);
@@ -251,10 +238,6 @@ int main(int argc, char **argv) {
 
   printf("\n Final achtemp\n");
   achtemp[0].print();
-
-  gettimeofday(&endTimer, NULL);
-  elapsedTimer = (endTimer.tv_sec - startTimer.tv_sec) +
-                 1e-6 * (endTimer.tv_usec - startTimer.tv_usec);
 
   // Free the allocated memory
   free(achtemp);
@@ -280,9 +263,9 @@ int main(int argc, char **argv) {
   sycl::free(d_achtemp_im, q);
   sycl::free(d_wx_array, q);
 
-  std::cout << "********** Kernel Time Taken **********= " << elapsedKernelTimer
-            << " secs" << std::endl;
-  std::cout << "********** Total Time Taken **********= " << elapsedTimer << " secs"
+  auto end = std::chrono::steady_clock::now();
+  auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+  std::cout << "********** Total Time Taken **********= " << time * 1e-9 << " secs"
             << std::endl;
 
   return 0;
