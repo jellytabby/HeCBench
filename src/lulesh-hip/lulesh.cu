@@ -148,8 +148,8 @@ notice, this list of conditions and the disclaimer (as noted below)
 #include <string.h>
 #include <ctype.h>
 #include <time.h>
-#include <sys/time.h>
 #include <unistd.h>
+#include <chrono>
 #include <climits>
 #include <iostream>
 #include <sstream>
@@ -2190,8 +2190,8 @@ int main(int argc, char *argv[])
       side, opts.numReg, opts.balance, opts.cost) ;
 
   // BEGIN timestep to solution */
-  timeval start;
-  gettimeofday(&start, NULL) ;
+  auto start = std::chrono::steady_clock::now();
+
   // Compute elem to reglist correspondence
   Index_t k = 0;
   for (Int_t r=0 ; r<locDom->numReg() ; r++) {
@@ -3035,12 +3035,9 @@ int main(int argc, char *argv[])
   } // while
 
   // Use reduced max elapsed time
-  double elapsed_time;
-  timeval end;
-  gettimeofday(&end, NULL) ;
-  elapsed_time = (double)(end.tv_sec - start.tv_sec) + ((double)(end.tv_usec - start.tv_usec))/1000000 ;
-  double elapsed_timeG;
-  elapsed_timeG = elapsed_time;
+  auto end = std::chrono::steady_clock::now();
+  auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+  double elapsed_timeG = time * 1e-9;
 
   // Write out final viz file */
   if (opts.viz) {
