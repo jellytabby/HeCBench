@@ -17,23 +17,6 @@ typedef enum _FUNC_RETURN_CODE {
     RET_FAILURE
 }func_ret_t;
 
-typedef struct __stopwatch_t{
-    struct timeval begin;
-    struct timeval end;
-}stopwatch;
-
-void 
-stopwatch_start(stopwatch *sw);
-
-void 
-stopwatch_stop (stopwatch *sw);
-
-double 
-get_interval_by_sec(stopwatch *sw);
-
-int 
-get_interval_by_usec(stopwatch *sw);
-
 func_ret_t
 create_matrix_from_file(float **mp, const char *filename, int *size_p);
 

@@ -3,7 +3,6 @@
 #include <getopt.h>
 #include <stdlib.h>
 #include <assert.h>
-#include <sys/time.h>
 #include <string.h>
 #include <chrono>
 #include <hip/hip_runtime.h>
@@ -12,12 +11,6 @@
 #define BLOCK_SIZE 16
 
 #include "lud_kernels.cu"
-
-double gettime() {
-  struct timeval t;
-  gettimeofday(&t,NULL);
-  return t.tv_sec+t.tv_usec*1e-6;
-}
 
 static int do_verify = 0;
 
@@ -36,7 +29,6 @@ int main ( int argc, char *argv[] )
   func_ret_t ret;
   const char *input_file = NULL;
   float *m, *mm;
-  stopwatch sw;
 
   while ((opt = getopt_long(argc, argv, "::vs:i:",
           long_options, &option_index)) != -1 ) {
@@ -108,7 +100,7 @@ int main ( int argc, char *argv[] )
   }
 
   /* beginning of timing point */
-  stopwatch_start(&sw);
+  auto start = std::chrono::steady_clock::now();
 
   float *d_m;
   size_t matrix_size_bytes = (size_t)matrix_dim * matrix_dim * sizeof(float); 
@@ -119,7 +111,7 @@ int main ( int argc, char *argv[] )
   printf("WG size of kernel = %d X %d\n", BLOCK_SIZE, BLOCK_SIZE);
 
   hipDeviceSynchronize();
-  auto start = std::chrono::steady_clock::now();
+  auto kstart = std::chrono::steady_clock::now();
 
   for (i=0; i < matrix_dim-BLOCK_SIZE; i += BLOCK_SIZE) {
     lud_diagonal<<<1, BLOCK_SIZE>>>(d_m, matrix_dim, i);
@@ -131,15 +123,18 @@ int main ( int argc, char *argv[] )
   lud_diagonal<<<1, BLOCK_SIZE>>>(d_m, matrix_dim, i);
 
   hipDeviceSynchronize();
-  auto end = std::chrono::steady_clock::now();
-  auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-  printf("Total kernel execution time : %f (s)\n", time * 1e-9f);
+  auto kend = std::chrono::steady_clock::now();
+  auto ktime = std::chrono::duration_cast<std::chrono::nanoseconds>(kend - kstart).count();
+  printf("Total kernel execution time : %lf (s)\n", ktime * 1e-9);
 
   hipMemcpy(m, d_m, matrix_size_bytes, hipMemcpyDeviceToHost);
 
+  hipFree(d_m);
+
   /* end of timing point */
-  stopwatch_stop(&sw);
-  printf("Device offloading time (s): %lf\n", get_interval_by_sec(&sw));
+  auto end = std::chrono::steady_clock::now();
+  auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+  printf("Device offloading time (s): %lf\n", time * 1e-9);
 
   if (do_verify){
     printf("After LUD\n");
@@ -150,6 +145,5 @@ int main ( int argc, char *argv[] )
   }
 
   free(m);
-  hipFree(d_m);
   return 0;
 }
