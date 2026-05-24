@@ -44,12 +44,6 @@
 #warning "the kernels may fail too launch on some systems if the block length is too large"
 #endif
 
-double get_time() {
-  struct timeval t;
-  gettimeofday(&t,NULL);
-  return t.tv_sec+t.tv_usec*1e-6;
-}
-
 //self-defined user type
 typedef struct{
   float x;
@@ -366,6 +360,12 @@ int main(int argc, char** argv){
   const char* data_file_name = argv[1];
   float h_ff_variable[NVAR];
 
+  std::ifstream file(data_file_name, std::ifstream::in);
+  if(!file.good()){
+    std::cerr << "Failed to find/open data file. Exit" << std::endl;
+    return 1;
+  }
+
   // set far field conditions and load them into constant memory on the gpu
   //{
   const float angle_of_attack = float(3.1415926535897931 / 180.0f) * float(deg_angle_of_attack);
@@ -407,10 +407,6 @@ int main(int argc, char** argv){
 
   int nel;
   int nelr;
-  std::ifstream file(data_file_name, std::ifstream::in);
-  if(!file.good()){
-    throw(std::string("can not find/open file! ")+data_file_name);
-  }
   file >> nel;
   nelr = block_length*((nel / block_length )+ std::min(1, nel % block_length));
   std::cout<<"--cambine: nel="<<nel<<", nelr="<<nelr<<std::endl;
@@ -456,7 +452,7 @@ int main(int argc, char** argv){
   float* h_step_factors = new float[nelr]; 
 #endif
 
-  double offload_start = get_time();
+  auto offload_start = std::chrono::steady_clock::now();
 
   float *d_ff_variable;
   Float3 *d_ff_flux_contribution_momentum_x;
@@ -506,35 +502,35 @@ int main(int argc, char** argv){
   dim3 gridDim4 ((nelr + BLOCK_SIZE_4 - 1)/BLOCK_SIZE_4);
 
   hipDeviceSynchronize();
-  double kernel_start = get_time();
+  auto kernel_start = std::chrono::steady_clock::now();
 
-  hipLaunchKernelGGL(initialize_variables, gridDim1, BLOCK_SIZE_1, 0, 0, nelr, d_variables, d_ff_variable);
-  hipLaunchKernelGGL(initialize_variables, gridDim1, BLOCK_SIZE_1, 0, 0, nelr, d_old_variables, d_ff_variable);  
-  hipLaunchKernelGGL(initialize_variables, gridDim1, BLOCK_SIZE_1, 0, 0, nelr, d_fluxes, d_ff_variable);    
-  hipLaunchKernelGGL(initialize_buffer, gridDim1, BLOCK_SIZE_1, 0, 0, d_step_factors, 0, nelr);
+  initialize_variables<<<gridDim1, BLOCK_SIZE_1>>>(nelr, d_variables, d_ff_variable);
+  initialize_variables<<<gridDim1, BLOCK_SIZE_1>>>(nelr, d_old_variables, d_ff_variable);  
+  initialize_variables<<<gridDim1, BLOCK_SIZE_1>>>(nelr, d_fluxes, d_ff_variable);    
+  initialize_buffer<<<gridDim1, BLOCK_SIZE_1>>>(d_step_factors, 0, nelr);
 
   // Begin iterations
   for(int n = 0; n < iterations; n++){
     copy(d_old_variables, d_variables, nelr*NVAR);
 
     // for the first iteration we compute the time step
-    hipLaunchKernelGGL(compute_step_factor, gridDim2, BLOCK_SIZE_2, 0, 0, nelr, d_variables, d_areas, d_step_factors);
+    compute_step_factor<<<gridDim2, BLOCK_SIZE_2>>>(nelr, d_variables, d_areas, d_step_factors);
 
 #ifdef DEBUG
-    hipMemcpy(h_step_factors, d_step_factors, sizeof(float)*nelr, cudaMemDeviceToHost);
+    hipMemcpy(h_step_factors, d_step_factors, sizeof(float)*nelr, hipMemDeviceToHost);
     for (int i = 0; i < 16; i++) printf("step factor: i=%d %f\n", i, h_step_factors[i]);
 #endif
     for(int j = 0; j < RK; j++){
-      hipLaunchKernelGGL(compute_flux, gridDim3, BLOCK_SIZE_3, 0, 0, nelr, d_elements_surrounding_elements, d_normals, 
+      compute_flux<<<gridDim3, BLOCK_SIZE_3>>>(nelr, d_elements_surrounding_elements, d_normals, 
           d_variables, d_ff_variable, d_fluxes, d_ff_flux_contribution_density_energy, \
           d_ff_flux_contribution_momentum_x, d_ff_flux_contribution_momentum_y, 
           d_ff_flux_contribution_momentum_z);
-      hipLaunchKernelGGL(time_step, gridDim4, BLOCK_SIZE_4, 0, 0, j, nelr, d_old_variables, d_variables, d_step_factors, d_fluxes);
+      time_step<<<gridDim4, BLOCK_SIZE_4>>>(j, nelr, d_old_variables, d_variables, d_step_factors, d_fluxes);
     }
   }
 
   hipDeviceSynchronize();
-  double kernel_end = get_time();
+  auto kernel_end = std::chrono::steady_clock::now();
 
   hipMemcpy(h_variables, d_variables, sizeof(float)*nelr*NVAR, hipMemcpyDeviceToHost);
 
@@ -551,10 +547,12 @@ int main(int argc, char** argv){
   hipFree(d_fluxes);
   hipFree(d_step_factors);
 
-  double offload_end = get_time();
-  printf("Device offloading time = %lf(s)\n", offload_end - offload_start);
+  auto offload_end = std::chrono::steady_clock::now();
+  auto offload_time = std::chrono::duration_cast<std::chrono::nanoseconds>(offload_end - offload_start).count();
+  printf("Device offloading time = %lf(s)\n", offload_time * 1e-9);
 
-  printf("Total execution time of kernels = %lf(s)\n", kernel_end - kernel_start);
+  auto kernel_time = std::chrono::duration_cast<std::chrono::nanoseconds>(kernel_end - kernel_start).count();
+  printf("Total execution time of kernels = %lf(s)\n", kernel_time * 1e-9);
 
 #ifdef OUTPUT
   std::cout << "Saving solution..." << std::endl;
