@@ -37,7 +37,6 @@ add_hecbench_benchmark(
             find_ellipse.c
             track_ellipse.c
             track_ellipse_gpu.c
-            helper.c
             avilib.c
             misc_math.c
     INCLUDE_DIRS meschach_lib
@@ -45,4 +44,4 @@ add_hecbench_benchmark(
     LINK_LIBRARIES meschach_hip 
 )
 
-set_source_files_properties(helper.c avilib.c misc_math.c detect_main.c find_ellipse.c track_ellipse.c track_ellipse_gpu.c PROPERTIES LANGUAGE HIP)
+set_source_files_properties(avilib.c misc_math.c detect_main.c find_ellipse.c track_ellipse.c track_ellipse_gpu.c PROPERTIES LANGUAGE HIP)

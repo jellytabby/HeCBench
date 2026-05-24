@@ -73,7 +73,6 @@ main: detect_main.o \
 	track_ellipse_sycl.o \
 	find_ellipse.o \
 	misc_math.o \
-	helper.o \
 	$(MATRIX_DIR)/meschach.a
 	$(CC) $(CFLAGS) -o main avilib.o \
 		track_ellipse.o \
@@ -81,7 +80,6 @@ main: detect_main.o \
 		find_ellipse.o \
 		misc_math.o \
 		detect_main.o \
-		helper.o \
 		$(MATRIX_DIR)/meschach.a $(LDFLAGS)
 
 %.o: %.[c]
@@ -89,11 +87,11 @@ main: detect_main.o \
 
 detect_main.o: detect_main.c \
                kernel_GICOV.sycl kernel_dilated.sycl \
-               track_ellipse.h helper.h misc_math.h
+               track_ellipse.h misc_math.h
 
 find_ellipse.o: find_ellipse.c find_ellipse.h avilib.h misc_math.h
 
-track_ellipse.o: track_ellipse.c find_ellipse.h $(MATRIX_DIR)/matrix.h avilib.h helper.h
+track_ellipse.o: track_ellipse.c find_ellipse.h $(MATRIX_DIR)/matrix.h avilib.h
 
 track_ellipse_sycl.o: track_ellipse_sycl.c track_ellipse.h kernel_IMGVF.sycl
 

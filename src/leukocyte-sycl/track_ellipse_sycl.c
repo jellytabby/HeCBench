@@ -1,5 +1,6 @@
-#include "track_ellipse.h"
+#include <chrono>
 #include <sycl/sycl.hpp>
+#include "track_ellipse.h"
 
 // Host and device arrays to hold matrices for all cells
 // (so we can copy to and from the device in a single transfer)

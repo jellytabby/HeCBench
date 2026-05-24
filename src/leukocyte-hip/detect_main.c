@@ -1,4 +1,4 @@
-#include "helper.h"
+#include <chrono>
 #include "track_ellipse.h"
 #include "misc_math.h"
 
@@ -22,7 +22,7 @@ int main(int argc, char ** argv) {
   }
 
   // Keep track of the start time of the program
-  long long program_start_time = get_time();
+  auto program_start_time = std::chrono::steady_clock::now();
 
   // Open video file
   char *video_file_name = argv[1];
@@ -105,7 +105,7 @@ int main(int argc, char ** argv) {
   memset(host_gicov, 0, grad_mem_size);
 
   // Offload the GICOV score computation to the GPU
-  long long GICOV_start_time = get_time();
+  auto GICOV_start_time = std::chrono::steady_clock::now();
 
   // Setup execution parameters
   int local_work_size = grad_m - (2 * MaxR); 
@@ -151,7 +151,7 @@ int main(int argc, char ** argv) {
   hipDeviceSynchronize();
   auto start = std::chrono::steady_clock::now();
 
-  hipLaunchKernelGGL(kernel_GICOV, global_work_size/work_group_size, work_group_size, 0, 0, 
+  kernel_GICOV<<<global_work_size/work_group_size, work_group_size>>>(
     d_grad_x,
     d_grad_y,
     d_sin_angle,
@@ -170,7 +170,7 @@ int main(int argc, char ** argv) {
 
   hipMemcpy(host_gicov, d_gicov, sizeof(float)*grad_m*grad_n, hipMemcpyDeviceToHost);
 
-  long long GICOV_end_time = get_time();
+  auto GICOV_end_time = std::chrono::steady_clock::now();
   
   // Copy the results into a new host matrix
 #ifdef DEBUG
@@ -186,7 +186,7 @@ int main(int argc, char ** argv) {
     }
 
   // Dilate the GICOV matrices
-  long long dilate_start_time = get_time();
+  auto dilate_start_time = std::chrono::steady_clock::now();
   // Determine the dimensions of the frame
   int max_gicov_m = gicov->m;
   int max_gicov_n = gicov->n;
@@ -217,7 +217,7 @@ int main(int argc, char ** argv) {
   hipDeviceSynchronize();
   start = std::chrono::steady_clock::now();
 
-  hipLaunchKernelGGL(kernel_dilated, global_work_size/local_work_size, local_work_size, 0, 0, 
+  kernel_dilated<<<global_work_size/local_work_size, local_work_size>>>(
 	  d_strel, d_gicov, d_img_dilated, strel_m, strel_n, max_gicov_m, max_gicov_n);
 
   hipDeviceSynchronize();
@@ -227,7 +227,7 @@ int main(int argc, char ** argv) {
 
   hipMemcpy(host_dilated, d_img_dilated, sizeof(float)*grad_m*grad_n, hipMemcpyDeviceToHost);
 
-  long long dilate_end_time = get_time();
+  auto dilate_end_time = std::chrono::steady_clock::now();
 
   // Copy results into a new host matrix
   MAT *img_dilated = m_get(max_gicov_m, max_gicov_n);
@@ -428,11 +428,16 @@ int main(int argc, char ** argv) {
   printf("Cells detected: %d\n\n", k_count);
 
   // Report the breakdown of the detection runtime
+  auto GICOV_time = std::chrono::duration_cast<std::chrono::nanoseconds>(GICOV_end_time - GICOV_start_time).count();
+  auto dilate_time = std::chrono::duration_cast<std::chrono::nanoseconds>(dilate_end_time - dilate_start_time).count();
+  auto program_end_time = std::chrono::steady_clock::now();
+  auto program_time = std::chrono::duration_cast<std::chrono::nanoseconds>(program_end_time - program_start_time).count();
+
   printf("Detection runtime\n");
   printf("-----------------\n");
-  printf("GICOV computation: %.5f seconds\n", ((float) (GICOV_end_time - GICOV_start_time)) / (1000*1000));
-  printf("   GICOV dilation: %.5f seconds\n", ((float) (dilate_end_time - dilate_start_time)) / (1000*1000));
-  printf("            Total: %.5f seconds\n", ((float) (get_time() - program_start_time)) / (1000*1000));
+  printf("GICOV computation: %.5f seconds\n", GICOV_time * 1e-9);
+  printf("   GICOV dilation: %.5f seconds\n", dilate_time * 1e-9);
+  printf("            Total: %.5f seconds\n", program_time * 1e-9);
 
   // Now that the cells have been detected in the first frame,
   //  track the ellipses through subsequent frames
@@ -440,13 +445,19 @@ int main(int argc, char ** argv) {
   else                printf("\nTracking cells across 1 frame\n");
 
 
-  long long tracking_start_time = get_time();
+  auto tracking_start_time = std::chrono::steady_clock::now();
   int num_snaxels = 20;
   ellipsetrack(cell_file, QAX_CENTERS, QAY_CENTERS, k_count, radius, num_snaxels, num_frames);
-  printf("           Total: %.5f seconds\n", ((float) (get_time() - tracking_start_time)) / (float) (1000*1000*num_frames));  
+  auto tracking_end_time = std::chrono::steady_clock::now();
+  auto track_time = std::chrono::duration_cast<std::chrono::nanoseconds>(tracking_end_time - tracking_start_time).count();
+
+  printf("           Total: %.5f seconds\n", track_time * 1e-9 / num_frames);  
+
+  program_end_time = std::chrono::steady_clock::now();
+  program_time = std::chrono::duration_cast<std::chrono::nanoseconds>(program_end_time - program_start_time).count();
 
   // Report total program execution time
-  printf("\nTotal application run time: %.5f seconds\n", ((float) (get_time() - program_start_time)) / (1000*1000));
+  printf("\nTotal application run time: %.5f seconds\n", program_time * 1e-9);
 
   return 0;
 }

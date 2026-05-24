@@ -1,8 +1,8 @@
 #include "avilib.h" 
+#include <chrono>
 #include "find_ellipse.h"
 #include "track_ellipse.h"
 #include "matrix.h"
-#include "helper.h"
 
 extern void IMGVF_SYCL(sycl::queue &q, MAT **I, MAT **IMGVF, double vx, double vy, double e, int max_iterations, double cutoff, int Nc);
 
@@ -145,9 +145,10 @@ void ellipsetrack(sycl::queue &q, avi_t *video, double *xc0, double *yc0, int Nc
 		}
 		
 		// Compute the motion gradient vector flow (MGVF) edgemaps for all cells concurrently
-		long long MGVF_start_time = get_time();
+                auto start = std::chrono::steady_clock::now();
 		MAT **IMGVF = MGVF(q, IE, 1, 1, Nc);
-		MGVF_time += get_time() - MGVF_start_time;
+                auto end = std::chrono::steady_clock::now();
+                MGVF_time += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 		
 		// Sequentially determine the new location of each cell
 		for (cell_num = 0; cell_num < Nc; cell_num++) {	
@@ -157,9 +158,10 @@ void ellipsetrack(sycl::queue &q, avi_t *video, double *xc0, double *yc0, int Nc
 			ycavg[cell_num] = ycavg[cell_num] - (double) (v1[cell_num] - 1);
 			
 			// Evolve the snake
-			long long snake_start_time = get_time();
+                        start = std::chrono::steady_clock::now();
 			ellipseevolve(IMGVF[cell_num], &(xci[cell_num]), &(yci[cell_num]), ri[cell_num], t, Np, (double) R, ycavg[cell_num]);
-			snake_time += get_time() - snake_start_time;
+                        end = std::chrono::steady_clock::now();
+                        snake_time += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 			
 			// Compute the cell's new position in the full image
 			xci[cell_num] = xci[cell_num] + u1[cell_num];
@@ -232,8 +234,8 @@ void ellipsetrack(sycl::queue &q, avi_t *video, double *xc0, double *yc0, int Nc
 	// Report average processing time per frame
 	printf("\n\nTracking runtime (average per frame):\n");
 	printf("------------------------------------\n");
-	printf("MGVF computation: %.5f seconds\n", ((float) (MGVF_time)) / (float) (1000*1000*Nf));
-	printf(" Snake evolution: %.5f seconds\n", ((float) (snake_time)) / (float) (1000*1000*Nf));
+        printf("MGVF computation: %.5f seconds\n", MGVF_time * 1e-9 / Nf);
+        printf(" Snake evolution: %.5f seconds\n", snake_time * 1e-9 / Nf);
 }
 
 

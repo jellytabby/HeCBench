@@ -1,3 +1,4 @@
+#include <chrono>
 #include "track_ellipse.h"
 
 // Host and device arrays to hold matrices for all cells
