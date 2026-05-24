@@ -3,7 +3,7 @@
 #include <math.h>
 #include <iostream>
 //#include <omp.h>
-#include <sys/time.h>
+#include <chrono>
 
 #ifdef RD_WG_SIZE_0_0
 	#define BLOCK_SIZE_0 RD_WG_SIZE_0_0
@@ -58,11 +58,6 @@
 
 using std::endl;
 
-double gettime() {
-  struct timeval t;
-  gettimeofday(&t,NULL);
-  return t.tv_sec+t.tv_usec*1e-6;
-}
 //-------------------------------------------------------------------
 //--initialize array with maximum limit
 //-------------------------------------------------------------------
