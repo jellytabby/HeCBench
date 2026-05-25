@@ -12,10 +12,9 @@
 // Other header files.
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
 #include <assert.h>
+#include <chrono>
 #include <iostream>
-#include <sys/time.h>
 #include <string.h>
 #include <omp.h>
 
@@ -34,12 +33,6 @@ using namespace std;
 void fatal(char *s)
 {
   fprintf(stderr, "error: %s\n", s);
-}
-
-double get_time() {
-  struct timeval t;
-  gettimeofday(&t,NULL);
-  return t.tv_sec+t.tv_usec*1e-6;
 }
 
 int main(int argc, char** argv)
@@ -105,7 +98,7 @@ int main(int argc, char** argv)
   int theHalo = HALO;
   int* outputBuffer = (int*)calloc(16384, sizeof(int));
 
-  double offload_start = get_time();
+  auto start = std::chrono::steady_clock::now();
 
   // gpuWall is read-only in the kernel
   int* gpuWall = data+cols;
@@ -115,27 +108,23 @@ int main(int argc, char** argv)
   int* gpuResult = (int*) malloc (sizeof(int)*cols);
   memcpy(gpuSrc, data, cols*sizeof(int));
 
-#pragma omp target data map(to: gpuSrc[0:cols]) \
+#pragma omp target data map(tofrom: gpuSrc[0:cols]) \
                         map(alloc: gpuResult[0:cols]) \
                         map(to: gpuWall[0:size-cols]) \
                         map(from: outputBuffer[0:16384])
   {
-    double kstart = 0.0;
+    auto kstart = std::chrono::steady_clock::now();
 
     for (int t = 0; t < rows - 1; t += pyramid_height)
     {
-      if (t == pyramid_height) {
-        kstart = get_time();
-      }
-
       // Calculate this for the kernel argument...
       int iteration = MIN(pyramid_height, rows-t-1);
 
-      #pragma omp target teams num_teams(gws) thread_limit(lws)
+      #pragma omp target teams num_teams(gws)
       {
         int prev[lws];
         int result[lws];
-        #pragma omp parallel 
+        #pragma omp parallel num_threads(lws)
         {
           // Set the kernel arguments.
           int BLOCK_SIZE = omp_get_num_threads();
@@ -239,14 +228,14 @@ int main(int argc, char** argv)
       gpuSrc = temp;
     }
 
-    double kend = get_time();
-    printf("Total kernel execution time: %lf (s)\n", kend - kstart);
-
-    #pragma omp target update from(gpuSrc[0:cols])
+    auto kend = std::chrono::steady_clock::now();
+    auto ktime = std::chrono::duration_cast<std::chrono::nanoseconds>(kend - kstart).count();
+    printf("Total kernel execution time: %lf (s)\n", ktime * 1e-9);
   }
 
-  double offload_end = get_time();
-  printf("Device offloading time = %lf (s)\n", offload_end - offload_start);
+  auto end = std::chrono::steady_clock::now();
+  auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+  printf("Device offloading time = %lf (s)\n", time * 1e-9);
 
   // add a null terminator at the end of the string.
   outputBuffer[16383] = '\0';

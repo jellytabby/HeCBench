@@ -12,10 +12,9 @@
 // Other header files.
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
 #include <assert.h>
+#include <chrono>
 #include <iostream>
-#include <sys/time.h>
 #include <sycl/sycl.hpp>
 
 
@@ -32,12 +31,6 @@
 void fatal(char *s)
 {
   fprintf(stderr, "error: %s\n", s);
-}
-
-double get_time() {
-  struct timeval t;
-  gettimeofday(&t,NULL);
-  return t.tv_sec+t.tv_usec*1e-6;
 }
 
 int main(int argc, char** argv)
@@ -108,7 +101,7 @@ int main(int argc, char** argv)
   int* outputBuffer = (int*)calloc(16384, sizeof(int));
   int theHalo = HALO;
 
-  double offload_start = get_time();
+  auto start = std::chrono::steady_clock::now();
 
 #ifdef USE_GPU
   sycl::queue q(sycl::gpu_selector_v, sycl::property::queue::in_order());
@@ -129,7 +122,7 @@ int main(int argc, char** argv)
   sycl::range<1> lws(block_size);
 
   q.wait();
-  double kstart = get_time();
+  auto kstart = std::chrono::steady_clock::now();
 
   for (int t = 0; t < rows - 1; t += pyramid_height)
   {
@@ -152,8 +145,9 @@ int main(int argc, char** argv)
   } // for
 
   q.wait();
-  double kend = get_time();
-  printf("Total kernel execution time: %lf (s)\n", kend - kstart);
+  auto kend = std::chrono::steady_clock::now();
+  auto ktime = std::chrono::duration_cast<std::chrono::nanoseconds>(kend - kstart).count();
+  printf("Total kernel execution time: %lf (s)\n", ktime * 1e-9);
 
   q.memcpy(result, d_gpuSrc, sizeof(int)*cols);
   q.memcpy(outputBuffer, d_outputBuffer, sizeof(int)*16348);
@@ -164,8 +158,9 @@ int main(int argc, char** argv)
   sycl::free(d_gpuWall, q);
   sycl::free(d_outputBuffer, q);
 
-  double offload_end = get_time();
-  printf("Device offloading time = %lf (s)\n", offload_end - offload_start);
+  auto end = std::chrono::steady_clock::now();
+  auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+  printf("Device offloading time = %lf (s)\n", time * 1e-9);
 
   // add a null terminator at the end of the string.
   outputBuffer[16383] = '\0';
