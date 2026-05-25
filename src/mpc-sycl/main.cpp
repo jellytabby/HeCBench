@@ -43,7 +43,7 @@ September 2015.
 #include <cstdio>
 #include <cassert>
 #include <string>
-#include <sys/time.h>
+#include <chrono>
 #include <sycl/sycl.hpp>
 #include "utils.h"
 
@@ -439,8 +439,6 @@ int main(int argc, char *argv[])
   d_offs = sycl::malloc_device<int>(blocks, q);
   q.memcpy(d_in, input, insize * sizeof(long)).wait();
 
-  struct timeval start, end;
-
   sycl::range<1> gws (blocks * TPB);
   sycl::range<1> lws (TPB);
 
@@ -449,7 +447,7 @@ int main(int argc, char *argv[])
   int WarpSize = *r;
 
   if (argc == 3) {
-    gettimeofday(&start, NULL);
+    auto start = std::chrono::steady_clock::now();
     q.memset(d_offs, -1, blocks * sizeof(int)).wait();
 
     if (WarpSize == 64) { 
@@ -482,14 +480,14 @@ int main(int argc, char *argv[])
       }).wait();
     }
 
-    gettimeofday(&end, NULL);
+    auto end = std::chrono::steady_clock::now();
 
     q.memcpy(output, d_out, sizeof(long)).wait();
     outsize = output[0] >> 32;
 
-    double ctime = end.tv_sec + end.tv_usec / 1000000.0 - start.tv_sec - start.tv_usec / 1000000.0;
-    printf("compression time: %.2f ms\n", 1000.0 * ctime);
-    printf("compression throughput: %.3f GB/s\n", 0.000000001 * sizeof(long) * insize / ctime);
+    auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+    printf("compression time: %.2f ms\n", time * 1e-6);
+    printf("compression throughput: %.3f GB/s\n", 1.0 * sizeof(long) * insize / time);
     printf("compression ratio: %.3f\n\n", 1.0 * insize / outsize);
 
     q.memcpy(output, d_out, outsize * sizeof(long)).wait();
@@ -499,7 +497,7 @@ int main(int argc, char *argv[])
     
   } else {
 
-    gettimeofday(&start, NULL);
+    auto start = std::chrono::steady_clock::now();
     q.memset(d_offs, -1, blocks * sizeof(int)).wait();
 
     if (WarpSize == 64) { 
@@ -534,13 +532,13 @@ int main(int argc, char *argv[])
       }).wait();
     }
 
-    gettimeofday(&end, NULL);
+    auto end = std::chrono::steady_clock::now();
 
     q.memcpy(output, d_out, outsize * sizeof(long)).wait();
 
-    double dtime = end.tv_sec + end.tv_usec / 1000000.0 - start.tv_sec - start.tv_usec / 1000000.0;
-    printf("decompression time: %.2f ms\n", 1000.0 * dtime);
-    printf("decompression throughput: %.3f GB/s\n\n", 0.000000001 * sizeof(long) * outsize / dtime);
+    auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+    printf("decompression time: %.2f ms\n", time * 1e-6);
+    printf("decompression throughput: %.3f GB/s\n\n", 1.0 * sizeof(long) * outsize / time);
 
     name = "decompression.txt";
   }

@@ -43,7 +43,7 @@ September 2015.
 #include <cstdio>
 #include <cassert>
 #include <string>
-#include <sys/time.h>
+#include <chrono>
 #include <hip/hip_runtime.h>
 #include "utils.h"
 
@@ -405,23 +405,22 @@ int main(int argc, char *argv[])
   hipMalloc(&d_offs, blocks * sizeof(int));
   hipMemcpy(d_in, input, insize * sizeof(long), hipMemcpyHostToDevice);
 
-  struct timeval start, end;
   if (argc == 3) {
-    gettimeofday(&start, NULL);
+    auto start = std::chrono::steady_clock::now();
     hipMemset(d_offs, -1, blocks * sizeof(int));
     if (deviceProp.warpSize == 64)
       MPCcompress<64><<<blocks, TPB>>>(insize, d_in, d_out, d_offs, dim);
     else
       MPCcompress<32><<<blocks, TPB>>>(insize, d_in, d_out, d_offs, dim);
     hipDeviceSynchronize();
-    gettimeofday(&end, NULL);
+    auto end = std::chrono::steady_clock::now();
 
     hipMemcpy(output, d_out, sizeof(long), hipMemcpyDeviceToHost);
     outsize = output[0] >> 32;
 
-    double ctime = end.tv_sec + end.tv_usec / 1000000.0 - start.tv_sec - start.tv_usec / 1000000.0;
-    printf("compression time: %.2f ms\n", 1000.0 * ctime);
-    printf("compression throughput: %.3f GB/s\n", 0.000000001 * sizeof(long) * insize / ctime);
+    auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+    printf("compression time: %.2f ms\n", time * 1e-6);
+    printf("compression throughput: %.3f GB/s\n", 1.0 * sizeof(long) * insize / time);
     printf("compression ratio: %.3f\n\n", 1.0 * insize / outsize);
 
     hipMemcpy(output, d_out, outsize * sizeof(long), hipMemcpyDeviceToHost);
@@ -431,20 +430,20 @@ int main(int argc, char *argv[])
 
   } else {
 
-    gettimeofday(&start, NULL);
+    auto start = std::chrono::steady_clock::now();
     hipMemset(d_offs, -1, blocks * sizeof(int));
     if (deviceProp.warpSize == 64)
       MPCdecompress<64><<<blocks, TPB>>>(d_in, d_out, d_offs);
     else
       MPCdecompress<32><<<blocks, TPB>>>(d_in, d_out, d_offs);
     hipDeviceSynchronize();
-    gettimeofday(&end, NULL);
+    auto end = std::chrono::steady_clock::now();
 
     hipMemcpy(output, d_out, outsize * sizeof(long), hipMemcpyDeviceToHost);
 
-    double dtime = end.tv_sec + end.tv_usec / 1000000.0 - start.tv_sec - start.tv_usec / 1000000.0;
-    printf("decompression time: %.2f ms\n", 1000.0 * dtime);
-    printf("decompression throughput: %.3f GB/s\n\n", 0.000000001 * sizeof(long) * outsize / dtime);
+    auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+    printf("decompression time: %.2f ms\n", time * 1e-6);
+    printf("decompression throughput: %.3f GB/s\n\n", 1.0 * sizeof(long) * outsize / time);
 
     name = "decompression.txt";
   }

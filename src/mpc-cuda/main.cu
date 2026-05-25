@@ -1,5 +1,5 @@
 /*
-MPC code [double] (LnVs BIT LVs ZE): A GPU-based compressor for arrays of 
+MPC code [double] (LnVs BIT LVs ZE): A GPU-based compressor for arrays of
 double-precision floating-point values.  See the following publication for
 more information: http://cs.txstate.edu/~mb92/papers/cluster15.pdf.
 
@@ -43,7 +43,7 @@ September 2015.
 #include <cstdio>
 #include <cassert>
 #include <string>
-#include <sys/time.h>
+#include <chrono>
 #include "utils.h"
 
 #define TPB 1024  /* do not change */
@@ -165,7 +165,7 @@ used.  It should be replaced by the value n before the data is further processed
 
 static __global__ __launch_bounds__(1024, 2)
 void MPCcompress(
-  const int n, 
+  const int n,
   long* __restrict__ const original,
   long* __restrict__ const compressed,
   volatile int* __restrict__ const goffset,
@@ -284,7 +284,7 @@ array of doubles before it can be used.
 
 static __global__ __launch_bounds__(1024, 2)
 void MPCdecompress(
-  long* __restrict__ const compressed, 
+  long* __restrict__ const compressed,
   long* __restrict__ const decompressed,
   volatile int* __restrict__ const goffset)
 {
@@ -399,20 +399,19 @@ int main(int argc, char *argv[])
   cudaMalloc(&d_offs, blocks * sizeof(int));
   cudaMemcpy(d_in, input, insize * sizeof(long), cudaMemcpyHostToDevice);
 
-  struct timeval start, end;
   if (argc == 3) {
-    gettimeofday(&start, NULL);
+    auto start = std::chrono::steady_clock::now();
     cudaMemset(d_offs, -1, blocks * sizeof(int));
     MPCcompress<<<blocks, TPB>>>(insize, d_in, d_out, d_offs, dim);
     cudaDeviceSynchronize();
-    gettimeofday(&end, NULL);
+    auto end = std::chrono::steady_clock::now();
 
     cudaMemcpy(output, d_out, sizeof(long), cudaMemcpyDeviceToHost);
     outsize = output[0] >> 32;
 
-    double ctime = end.tv_sec + end.tv_usec / 1000000.0 - start.tv_sec - start.tv_usec / 1000000.0;
-    printf("compression time: %.2f ms\n", 1000.0 * ctime);
-    printf("compression throughput: %.3f GB/s\n", 0.000000001 * sizeof(long) * insize / ctime);
+    auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+    printf("compression time: %.2f ms\n", time * 1e-6);
+    printf("compression throughput: %.3f GB/s\n", 1.0 * sizeof(long) * insize / time);
     printf("compression ratio: %.3f\n\n", 1.0 * insize / outsize);
 
     cudaMemcpy(output, d_out, outsize * sizeof(long), cudaMemcpyDeviceToHost);
@@ -422,17 +421,17 @@ int main(int argc, char *argv[])
 
   } else {
 
-    gettimeofday(&start, NULL);
+    auto start = std::chrono::steady_clock::now();
     cudaMemset(d_offs, -1, blocks * sizeof(int));
     MPCdecompress<<<blocks, TPB>>>(d_in, d_out, d_offs);
     cudaDeviceSynchronize();
-    gettimeofday(&end, NULL);
+    auto end = std::chrono::steady_clock::now();
 
     cudaMemcpy(output, d_out, outsize * sizeof(long), cudaMemcpyDeviceToHost);
 
-    double dtime = end.tv_sec + end.tv_usec / 1000000.0 - start.tv_sec - start.tv_usec / 1000000.0;
-    printf("decompression time: %.2f ms\n", 1000.0 * dtime);
-    printf("decompression throughput: %.3f GB/s\n\n", 0.000000001 * sizeof(long) * outsize / dtime);
+    auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+    printf("decompression time: %.2f ms\n", time * 1e-6);
+    printf("decompression throughput: %.3f GB/s\n\n", 1.0 * sizeof(long) * outsize / time);
 
     name = "decompression.txt";
   }
