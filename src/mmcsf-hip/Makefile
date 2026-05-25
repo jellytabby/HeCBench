@@ -15,7 +15,7 @@ LAUNCHER  =
 
 program = main
 
-source = main.cu kernels.cu ../mmcsf-cuda/mttkrp_cpu.cu 
+source = ../mmcsf-cuda/main.cu kernels.cu ../mmcsf-cuda/mttkrp_cpu.cu
 
 
 obj = main.o kernels.o mttkrp_cpu.o
@@ -48,7 +48,10 @@ endif
 $(program): $(obj)
 	$(CC) $(CFLAGS) $(obj) -o $@ $(LDFLAGS)
 
-%.o: %.cu ../mmcsf-cuda/mttkrp_cpu.h mttkrp_gpu.h util.h   
+main.o: ../mmcsf-cuda/main.cu ../mmcsf-cuda/mttkrp_cpu.h mttkrp_gpu.h ../mmcsf-cuda/util.h
+	$(CC) $(CFLAGS) -c $< -o $@
+
+kernels.o: kernels.cu ../mmcsf-cuda/mttkrp_cpu.h mttkrp_gpu.h ../mmcsf-cuda/util.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 mttkrp_cpu.o : ../mmcsf-cuda/mttkrp_cpu.cu ../mmcsf-cuda/mttkrp_cpu.h
@@ -62,6 +65,6 @@ output.tns: ../mmcsf-cuda/generate_tensor.py
 
 test: ../mmcsf-cuda/toy.tns $(program)
 	$(LAUNCHER) ./$(program) -i ../mmcsf-cuda/toy.tns -m 0 -R 32 -f 128 -w 1
-  
+
 run: output.tns $(program)
 	$(LAUNCHER) ./$(program) -i output.tns -m 0 -R 32 -f 128 -w 4

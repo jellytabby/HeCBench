@@ -13,8 +13,7 @@
 #include <boost/functional/hash.hpp>
 #include <utility>  
 #include <bits/stdc++.h>  
-#include <time.h>
-#include <sys/time.h>
+#include <chrono>
 #include <iomanip> 
 #include <iostream>
 
@@ -1291,12 +1290,6 @@ inline void correctness_check(DTYPE *out, DTYPE *COOout, int nr, int nc){
     std::cout <<  mismatch <<" mismatches found at " << precision << " precision. " << std::endl;
     std::cout << "Maximum diff " << maxDiff << ". "<<std::endl;
   }
-}
-
-inline double seconds(){
-  struct timeval tp;
-  gettimeofday(&tp, NULL);
-  return ((double)tp.tv_sec + (double)tp.tv_usec * 1.e-6);
 }
 
 inline void print_help_and_exit() {

@@ -3,7 +3,7 @@
 #include "mttkrp_gpu.h"
 
 template <typename T>
-inline void atomicAdd(T &var, T val) 
+inline void atomicAdd(T &var, T val)
 {
   auto atm = sycl::atomic_ref<T,
     sycl::memory_order::relaxed,

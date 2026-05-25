@@ -17,11 +17,12 @@ int main(int argc, char* argv[]){
 
   Tensor X;
   load_tensor(X, Opt);
-  double t0;
 
-  t0 = seconds();
+  auto t0 = std::chrono::steady_clock::now();
   sort_COOtensor(X);
-  printf("Sort time : %.3f sec \n", seconds() - t0); 
+  auto t1 = std::chrono::steady_clock::now();
+  auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).count();
+  printf("Sort time : %.3f sec \n", time * 1e-9);
 
   check_opt(X, Opt); //check options are good
 
@@ -73,12 +74,14 @@ int main(int argc, char* argv[]){
   Opt.redunMode = redunMode;
 
   TiledTensor ModeWiseTiledX[X.ndims];
-  t0 = seconds();
+  t0 = std::chrono::steady_clock::now();
   mm_partition_reuseBased(arrX, X, ModeWiseTiledX, Opt);
   populate_paritions(X, ModeWiseTiledX);
-  printf("mm_partition & populate - time: %.3f sec \n", seconds() - t0);
+  t1 = std::chrono::steady_clock::now();
+  time = std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).count();
+  printf("mm_partition & populate - time: %.3f sec \n", time * 1e-9);
 
-  t0 = seconds();
+  t0 = std::chrono::steady_clock::now();
   for (int m = 0; m < X.ndims; ++m){
 
     if(ModeWiseTiledX[m].totNnz > 0){           
@@ -87,13 +90,17 @@ int main(int argc, char* argv[]){
       create_fbrLikeSlcInds(ModeWiseTiledX, m);
     }
   }
-  printf("Sort,createCSF,createFbrIND - time: %.3f sec \n", seconds() - t0);
+  t1 = std::chrono::steady_clock::now();
+  time = std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).count();
+  printf("Sort,createCSF,createFbrIND - time: %.3f sec \n", time * 1e-9);
 
   printf("Starting MM-CSF on a GPU\n");
 
-  t0 = seconds();
+  t0 = std::chrono::steady_clock::now();
   MTTKRP_MIHCSR_GPU(ModeWiseTiledX, U, Opt);
-  printf("Total GPU time: %.3f sec \n", seconds() - t0);
+  t1 = std::chrono::steady_clock::now();
+  time = std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).count();
+  printf("Total GPU time: %.3f sec \n", time * 1e-9);
 
   if(!Opt.outFileName.empty()){
     printf("Save results to a file\n");
