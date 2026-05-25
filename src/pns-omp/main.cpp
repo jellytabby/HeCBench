@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
-#include <sys/time.h>
+#include <chrono>
 #include <omp.h>
 
 
@@ -54,12 +54,6 @@ float results[4];
 float* h_vars;
 int* h_maxs;
 
-long long get_time() {
-  struct timeval tv;
-  gettimeofday(&tv, NULL);
-  return (tv.tv_sec * 1000000) + tv.tv_usec;
-}
-
 int main(int argc, char** argv) 
 {
   if (argc<4) 
@@ -91,12 +85,15 @@ int main(int argc, char** argv)
   // compute the simulation on the GPU
   long long ktime = 0;
 
-  auto start = get_time();
+  auto start = std::chrono::steady_clock::now();
 
   PetrinetOnDevice(ktime);
 
-  auto end = get_time();
-  printf("Total device execution time: %.2f s\n", (end - start) / 1e6f);
+  auto end = std::chrono::steady_clock::now();
+  auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+
+  printf("Total kernel execution time: %.2f s\n", ktime * 1e-9);
+  printf("Total device execution time: %.2f s\n", time * 1e-9);
 
   compute_statistics();
 
@@ -154,19 +151,19 @@ void PetrinetOnDevice(long long &time)
   {
     // Launch the device computation threads!
     for (i = 0; i<T-block_num; i+=block_num) {
-      auto start = get_time();
+      auto start = std::chrono::steady_clock::now();
 
-      #pragma omp target teams num_teams(block_num) thread_limit(256)
+      #pragma omp target teams num_teams(block_num)
       {
         uint32 mt [MERS_N];
-        #pragma omp parallel 
+        #pragma omp parallel num_threads(256)
         {
           PetrinetKernel(mt, g_places, g_vars, g_maxs, N, S, 5489*(i+1));
         }
       }
 
-      auto end = get_time();
-      time += end - start;
+      auto end = std::chrono::steady_clock::now();
+      time += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 
       #pragma omp target update to (g_maxs[0:block_num])
       #pragma omp target update to (g_vars[0:block_num])
@@ -177,19 +174,19 @@ void PetrinetOnDevice(long long &time)
       p_hvars += block_num;
     }
           
-    auto start = get_time();
+    auto start = std::chrono::steady_clock::now();
 
-    #pragma omp target teams num_teams(T-i) thread_limit(256)
+    #pragma omp target teams num_teams(T-i)
     {
       uint32 mt [MERS_N];
-      #pragma omp parallel 
+      #pragma omp parallel num_threads(256)
       {
         PetrinetKernel(mt, g_places, g_vars, g_maxs, N, S, 5489*(i+1));
       }
     }
 
-    auto end = get_time();
-    time += end - start;
+    auto end = std::chrono::steady_clock::now();
+    time += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 
     #pragma omp target update to (g_maxs[0:T-i])
     #pragma omp target update to (g_vars[0:T-i])

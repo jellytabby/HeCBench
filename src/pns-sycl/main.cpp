@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
-#include <sys/time.h>
+#include <chrono>
 #include <sycl/sycl.hpp>
 
 
@@ -55,12 +55,6 @@ float results[4];
 float* h_vars;
 int* h_maxs;
 
-long long get_time() {
-  struct timeval tv;
-  gettimeofday(&tv, NULL);
-  return (tv.tv_sec * 1000000) + tv.tv_usec;
-}
-
 int main(int argc, char** argv)
 {
   if (argc<4)
@@ -90,14 +84,15 @@ int main(int argc, char** argv)
 
   long long ktime = 0;
 
-  auto start = get_time();
-
+  auto start = std::chrono::steady_clock::now();
+  
   PetrinetOnDevice(ktime);
 
-  auto end = get_time();
+  auto end = std::chrono::steady_clock::now();
+  auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 
-  printf("Total kernel execution time: %.2f s\n", ktime / 1e6f);
-  printf("Total device execution time: %.2f s\n", (end - start) / 1e6f);
+  printf("Total kernel execution time: %.2f s\n", ktime * 1e-9);
+  printf("Total device execution time: %.2f s\n", time * 1e-9);
 
   compute_statistics();
 
@@ -167,7 +162,7 @@ void PetrinetOnDevice(long long &time)
   for (i = 0; i<T-block_num; i+=block_num)
   {
     q.wait();
-    auto start = get_time();
+    auto start = std::chrono::steady_clock::now();
 
     q.submit([&] (sycl::handler &cgh) {
       sycl::local_accessor<uint32, 1> mt(sycl::range<1>(MERS_N), cgh);
@@ -183,8 +178,8 @@ void PetrinetOnDevice(long long &time)
       });
     }).wait();
 
-    auto end = get_time();
-    time += end - start;
+    auto end = std::chrono::steady_clock::now();
+    time += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 
     q.memcpy(p_hmaxs, g_maxs, block_num*sizeof(int));
     q.memcpy(p_hvars, g_vars, block_num*sizeof(float));
@@ -196,7 +191,7 @@ void PetrinetOnDevice(long long &time)
   sycl::range<1> gws1 (256*(T-i));
 
   q.wait();
-  auto start = get_time();
+  auto start = std::chrono::steady_clock::now();
 
   q.submit([&] (sycl::handler &cgh) {
     sycl::local_accessor<uint32, 1> mt(sycl::range<1>(MERS_N), cgh);
@@ -212,8 +207,8 @@ void PetrinetOnDevice(long long &time)
     });
   }).wait();
 
-  auto end = get_time();
-  time += end - start;
+  auto end = std::chrono::steady_clock::now();
+  time += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 
   // Read result from the device
   q.memcpy(p_hmaxs, g_maxs, (T-i)*sizeof(int));

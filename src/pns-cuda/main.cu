@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
-#include <sys/time.h>
+#include <chrono>
 #include <cuda.h>
 
 /*
@@ -65,12 +65,6 @@ float results[4];
 float* h_vars;
 int* h_maxs;
 
-long long get_time() {
-  struct timeval tv;
-  gettimeofday(&tv, NULL);
-  return (tv.tv_sec * 1000000) + tv.tv_usec;
-}
-
 int main(int argc, char** argv) 
 {
   if (argc<4) 
@@ -101,14 +95,15 @@ int main(int argc, char** argv)
   // compute the simulation on the GPU
   long long ktime = 0;
 
-  auto start = get_time();
+  auto start = std::chrono::steady_clock::now();
   
   PetrinetOnDevice(ktime);
 
-  auto end = get_time();
+  auto end = std::chrono::steady_clock::now();
+  auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 
-  printf("Total kernel execution time: %.2f s\n", ktime / 1e6f);
-  printf("Total device execution time: %.2f s\n", (end - start) / 1e6f);
+  printf("Total kernel execution time: %.2f s\n", ktime * 1e-9);
+  printf("Total device execution time: %.2f s\n", time * 1e-9);
 
   compute_statistics();
 
@@ -172,14 +167,14 @@ void PetrinetOnDevice(long long &time)
   for (i = 0; i < T-block_num; i += block_num)
   {
     cudaDeviceSynchronize();
-    auto start = get_time();
+    auto start = std::chrono::steady_clock::now();
 
     PetrinetKernel<<<grid, threads>>>
       (g_places, g_vars, g_maxs, N, S, 5489*(i+1));
 
     cudaDeviceSynchronize();
-    auto end = get_time();
-    time += end - start;
+    auto end = std::chrono::steady_clock::now();
+    time += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 
     CopyFromDeviceMemory(p_hmaxs, g_maxs, block_num*sizeof(int));
     CopyFromDeviceMemory(p_hvars, g_vars, block_num*sizeof(float));
@@ -191,14 +186,14 @@ void PetrinetOnDevice(long long &time)
   dim3 grid1(T-i);
 
   cudaDeviceSynchronize();
-  auto start = get_time();
+  auto start = std::chrono::steady_clock::now();
 
   PetrinetKernel<<<grid1, threads>>>
     (g_places, g_vars, g_maxs, N, S, 5489*(i+1));
 
   cudaDeviceSynchronize();
-  auto end = get_time();
-  time += end - start;
+  auto end = std::chrono::steady_clock::now();
+  time += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 
   // Read result from the device
   CopyFromDeviceMemory(p_hmaxs, g_maxs, (T-i)*sizeof(int));
