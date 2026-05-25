@@ -38,7 +38,6 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include <time.h>
 #include <memory.h>
 #include <math.h>
 #include <iostream>
