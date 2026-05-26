@@ -1,10 +1,10 @@
 //=============================================================================
 
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstdint>
 #include <cstring>
-#include <sys/time.h>
 #include <errno.h>
 #include <mpi.h>
 
@@ -29,20 +29,6 @@ void assert_(const char* condition_string, const char* file, int line) {
 
 
 //-----------------------------------------------------------------------------
-
-/// Wallclock timer.
-
-double get_time() {
-
-  struct timeval tv;
-  gettimeofday(&tv, NULL);
-  double result = ((double)tv.tv_sec + (double)tv.tv_usec * 1.e-6);
-
-  return result;
-}
-
-//-----------------------------------------------------------------------------
-
 
 /// Choices for tensor core GEMM method.
 
@@ -305,7 +291,7 @@ template<int TC_METHOD>
 void perform_run(size_t num_vector, size_t num_field, int num_iterations) {
 
   SAFE_CALL_MPI(MPI_Barrier(MPI_COMM_WORLD));
-  const double timetotal1 = get_time();
+  auto timetotal1 = std::chrono::steady_clock::now();
 
   int num_proc = 0;
   int proc_num = 0;
@@ -359,7 +345,7 @@ void perform_run(size_t num_vector, size_t num_field, int num_iterations) {
 
   // Loop over steps.
 
-  double timegemm = 0;
+  long timegemm = 0;
   double flops_local = 0;
   size_t hash_local = 0;
   const int num_steps = (num_proc + 2) / 2;
@@ -371,8 +357,8 @@ void perform_run(size_t num_vector, size_t num_field, int num_iterations) {
     for (int step = 1; step <= num_steps; ++step) {
 
       SAFE_CALL_MPI(MPI_Barrier(MPI_COMM_WORLD));
-      const double timetotal2 = get_time();
-      const double timetotal= timetotal2 - timetotal1;
+      auto timetotal2 = std::chrono::steady_clock::now();
+      auto timetotal = std::chrono::duration_cast<std::chrono::nanoseconds>(timetotal2 - timetotal1).count();
 
       const bool do_out = proc_num == 0 && (
         !(iteration & (iteration-1)) || iteration % 256 == 0 ||
@@ -380,7 +366,7 @@ void perform_run(size_t num_vector, size_t num_field, int num_iterations) {
 
       if (do_out) {
         printf("Iteration %i of %i, step %i of %i, elapsed sec %.3f: setup...",
-               iteration, num_iterations, step, num_steps, timetotal);
+               iteration, num_iterations, step, num_steps, timetotal * 1e-9);
         fflush(stdout);
       }
 
@@ -406,7 +392,7 @@ void perform_run(size_t num_vector, size_t num_field, int num_iterations) {
       }
 
       SAFE_CALL_MPI(MPI_Barrier(MPI_COMM_WORLD));
-      const double timegemm1 = get_time();
+      auto timegemm1 = std::chrono::steady_clock::now();
 
       if (is_step_active) {
         perform_gemm<TCS, GemmIn_t, GemmOut_t>(q, m, n, k,
@@ -415,9 +401,9 @@ void perform_run(size_t num_vector, size_t num_field, int num_iterations) {
       } // if is_step_active
 
       SAFE_CALL_MPI(MPI_Barrier(MPI_COMM_WORLD));
-      const double timegemm2 = get_time();
+      auto timegemm2 = std::chrono::steady_clock::now();
 
-      timegemm += timegemm2 - timegemm1;
+      timegemm += std::chrono::duration_cast<std::chrono::nanoseconds>(timegemm2 - timegemm1).count();
 
       // Check.
 
@@ -479,12 +465,12 @@ void perform_run(size_t num_vector, size_t num_field, int num_iterations) {
                            MPI_UNSIGNED_LONG_LONG, MPI_SUM, MPI_COMM_WORLD));
 
   SAFE_CALL_MPI(MPI_Barrier(MPI_COMM_WORLD));
-  const double timetotal2 = get_time();
-  const double timetotal= timetotal2 - timetotal1;
+  auto timetotal2 = std::chrono::steady_clock::now();
+  auto timetotal = std::chrono::duration_cast<std::chrono::nanoseconds>(timetotal2 - timetotal1).count();
 
   if (proc_num == 0) {
     printf("TFLOPS %.3f\nGEMM time %.3f (s)\nGEMM TFLOPS/s %.3f\nTotal time %.3f (s)\nhash %zu\n",
-      flops/1e12, timegemm, flops*1e-12/timegemm, timetotal, hash);
+      flops/1e12, timegemm * 1e-9, flops * 1e-3 / timegemm, timetotal * 1e-9, hash);
   }
 }
 
