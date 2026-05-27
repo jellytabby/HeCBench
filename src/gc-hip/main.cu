@@ -74,12 +74,7 @@ void init(const int nodes,
     int* const __restrict__ wl,
     int* __restrict__ wlsize)
 {
-#if defined(__GFX8__) || defined(__GFX9__)
-  #define WarpSize 64
-#else
-  #define WarpSize 32
-#endif
-  const int lane = threadIdx.x % WarpSize;
+  const int lane = threadIdx.x % warpSize;
   const int thread = threadIdx.x + blockIdx.x * ThreadsPerBlock;
   const int threads = gridDim.x * ThreadsPerBlock;
 
@@ -117,7 +112,7 @@ void init(const int nodes,
       const int wend = __shfl(end, who);
       const int wdegv = wend - wbeg;
       int wpos = wbeg;
-      for (int i = wbeg + lane; __any(i < wend); i += WarpSize) {
+      for (int i = wbeg + lane; __any(i < wend); i += warpSize) {
         int wnei;
         bool prio = false;
         if (i < wend) {
@@ -156,14 +151,9 @@ void runLarge(const int nodes,
     const int* const __restrict__ wl,
     const int* __restrict__ wlsize)
 {
-#if defined(__GFX8__) || defined(__GFX9__)
-  #define WarpSize 64
-#else
-  #define WarpSize 32
-#endif
   const int stop = *wlsize;
   if (stop != 0) {
-    const int lane = threadIdx.x % WarpSize;
+    const int lane = threadIdx.x % warpSize;
     const int thread = threadIdx.x + blockIdx.x * ThreadsPerBlock;
     const int threads = gridDim.x * ThreadsPerBlock;
     bool again;
@@ -198,7 +188,7 @@ void runLarge(const int nodes,
 
           bool wshortcut = true;
           bool wdone = true;
-          for (int i = wbeg + lane; __any(i < wend); i += WarpSize) {
+          for (int i = wbeg + lane; __any(i < wend); i += warpSize) {
             int nei, neidata, neirange;
             if (i < wend) {
               nei = nlist[i];
@@ -229,9 +219,9 @@ void runLarge(const int nodes,
           wpcol &= __shfl_xor(wpcol, 4);
           wpcol &= __shfl_xor(wpcol, 8);
           wpcol &= __shfl_xor(wpcol, 16);
-          #if defined(__GFX8__) || defined(__GFX9__)
-          wpcol &= __shfl_xor(wpcol, 32);
-          #endif
+          if (warpSize > 32) {
+            wpcol &= __shfl_xor(wpcol, 32);
+          }
           if (who == lane) pcol = wpcol;
           if (who == lane) done = wdone;
           if (who == lane) shortcut = wshortcut;
