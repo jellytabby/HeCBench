@@ -269,6 +269,8 @@ __device__ void D_findComb(int* comb, int l, int n)
 }
 
 __device__ int D_findindex(int *arr, int size){  //reminder: arr[0] has to be 0 && size == array size-1 && index start from 0
+  if (size == 0) return 0;  // empty parent set maps to slot 0 (matches D_findComb(l=0))
+
   int i,j,index=0;
 
   for(i=1;i<size;i++){
