@@ -53,7 +53,7 @@
         ]
     ],
     "aobench": [
-        "(?:Average render time: )([0-9.+-e]+)(?: sec)",
+        "(?:Average kernel time: )([0-9.+-e]+)(?: usec)",
         [
             "1000"
         ]
