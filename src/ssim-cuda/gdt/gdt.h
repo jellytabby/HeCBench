@@ -31,11 +31,8 @@
 #endif
 #include <algorithm>
 #ifdef __GNUC__
-#  include <sys/time.h>
 #  include <stdint.h>
 #endif
-#include <stdexcept>
-
 
 #ifdef _WIN32
     #ifndef WIN32_LEAN_AND_MEAN
@@ -167,8 +164,6 @@ namespace gdt {
     inline __both__ double sqrt(const double d)   { return ::sqrt(d); }
   }
 // #endif
-//   inline __both__ float rsqrt(const float f)   { return 1.f/sqrtf(f); }
-//   inline __both__ double rsqrt(const double d)   { return 1./sqrt(d); }
 
 #ifdef __WIN32__
 #  define osp_snprintf sprintf_s
@@ -214,17 +209,6 @@ namespace gdt {
     return buf;
   }
   
-  inline double getCurrentTime()
-  {
-#ifdef _WIN32
-    SYSTEMTIME tp; GetSystemTime(&tp);
-    return double(tp.wSecond) + double(tp.wMilliseconds) / 1E3;
-#else
-    struct timeval tp; gettimeofday(&tp,nullptr);
-    return double(tp.tv_sec) + double(tp.tv_usec)/1E6;
-#endif
-  }
-
   inline bool hasSuffix(const std::string &s, const std::string &suffix)
   {
     return s.substr(s.size()-suffix.size()) == suffix;
