@@ -41,7 +41,6 @@
 
 #include <sycl/sycl.hpp>
 #include <random>
-#include <time.h>
 #include <iostream>
 
 namespace faiss {

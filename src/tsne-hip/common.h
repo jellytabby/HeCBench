@@ -68,8 +68,6 @@
 #include <float.h>
 #include <string.h>
 #include <math.h>
-#include <time.h>
-#include <sys/time.h>
 
 // C++ Library includes
 #include <random>

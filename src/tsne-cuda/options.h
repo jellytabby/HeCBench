@@ -40,7 +40,6 @@
 #define SRC_INCLUDE_OPTIONS_H_
 
 #include <random>
-#include <time.h>
 #include <iostream>
 #include "cuda_utils.h"
 
