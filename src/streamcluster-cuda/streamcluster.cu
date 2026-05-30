@@ -49,16 +49,16 @@ static int  *center_table;          //index table of centers
 static int nproc;                 //# of threads
 
 /* timing info (accumulated in nanoseconds) */
-static long serial = 0;
-static long cpu_gpu_memcpy = 0;
-static long memcpy_back = 0;
-static long gpu_malloc = 0;
-static long kernel_time = 0;
-static int cnt_speedy = 0;
+static long serial;
+static long cpu_gpu_memcpy;
+static long memcpy_back;
+static long gpu_malloc;
+static long kernel_time;
+static int cnt_speedy;
 
 // instrumentation code
 #ifdef PROFILE_TMP
-static long gpu_free = 0;
+static long gpu_free;
 long time_local_search = 0;
 long time_speedy = 0;
 long time_select_feasible = 0;
