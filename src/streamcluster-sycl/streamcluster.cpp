@@ -56,32 +56,26 @@ static bool *is_center;            //whether a point is a center
 static int  *center_table;          //index table of centers
 static int nproc;                 //# of threads
 
-/* timing info */
-static double serial;
-static double cpu_gpu_memcpy;
-static double memcpy_back;
-static double gpu_malloc;
-static double kernel_time;
+/* timing info (accumulated in nanoseconds) */
+static long serial;
+static long cpu_gpu_memcpy;
+static long memcpy_back;
+static long gpu_malloc;
+static long kernel_time;
 static int cnt_speedy;
 
 // instrumentation code
 #ifdef PROFILE_TMP
-static double gpu_free;
-double time_local_search;
-double time_speedy;
-double time_select_feasible;
-double time_gain;
-double time_shuffle;
-double time_gain_dist;
-double time_gain_init;
-double time_FL;
+static long gpu_free;
+long time_local_search = 0;
+long time_speedy = 0;
+long time_select_feasible = 0;
+long time_gain = 0;
+long time_shuffle = 0;
+long time_gain_dist = 0;
+long time_gain_init = 0;
+long time_FL = 0;
 #endif
-
-double gettime() {
-  struct timeval t;
-  gettimeofday(&t,NULL);
-  return t.tv_sec+t.tv_usec*1e-6;
-}
 
 void inttofile(int data, char *filename){
   FILE *fp = fopen(filename, "w");
@@ -119,7 +113,7 @@ int isIdentical(float *i, float *j, int D){
 void shuffle(Points *points)
 {
 #ifdef PROFILE_TMP
-  double t1 = gettime();
+  auto t1 = std::chrono::steady_clock::now();
 #endif
   long i, j;
   Point temp;
@@ -130,8 +124,8 @@ void shuffle(Points *points)
     points->p[j] = temp;
   }
 #ifdef PROFILE_TMP
-  double t2 = gettime();
-  time_shuffle += t2-t1;
+  auto t2 = std::chrono::steady_clock::now();
+  time_shuffle += std::chrono::duration_cast<std::chrono::nanoseconds>(t2-t1).count();
 #endif
 }
 
@@ -139,7 +133,7 @@ void shuffle(Points *points)
 void intshuffle(int *intarray, int length)
 {
 #ifdef PROFILE_TMP
-  double t1 = gettime();
+  auto t1 = std::chrono::steady_clock::now();
 #endif
   long i, j;
   int temp;
@@ -150,8 +144,8 @@ void intshuffle(int *intarray, int length)
     intarray[j]=temp;
   }
 #ifdef PROFILE_TMP
-  double t2 = gettime();
-  time_shuffle += t2-t1;
+  auto t2 = std::chrono::steady_clock::now();
+  time_shuffle += std::chrono::duration_cast<std::chrono::nanoseconds>(t2-t1).count();
 #endif
 }
 
@@ -184,7 +178,7 @@ float dist(Point p1, Point p2, int dim)
 float pspeedy(Points *points, float z, long *kcenter, int pid, pthread_barrier_t* barrier)
 {
 #ifdef PROFILE_TMP
-  double t1 = gettime();
+  auto t1 = std::chrono::steady_clock::now();
 #endif
   cnt_speedy++;
 #ifdef ENABLE_THREADS
@@ -321,9 +315,9 @@ float pspeedy(Points *points, float z, long *kcenter, int pid, pthread_barrier_t
 #endif
 
 #ifdef PROFILE_TMP
-  double t2 = gettime();
+  auto t2 = std::chrono::steady_clock::now();
   if( pid== 0 ) {
-    time_speedy += t2 -t1;
+    time_speedy += std::chrono::duration_cast<std::chrono::nanoseconds>(t2-t1).count();
   }
 #endif
   return(totalcost);
@@ -342,7 +336,7 @@ float pFL(Points *points, int *feasible, int numfeasible,
     int pid, pthread_barrier_t* barrier)
 {
 #ifdef PROFILE_TMP
-  double t1 = gettime();
+  auto t1 = std::chrono::steady_clock::now();
 #endif
 #ifdef ENABLE_THREADS
   pthread_barrier_wait(barrier);
@@ -384,8 +378,8 @@ float pFL(Points *points, int *feasible, int numfeasible,
 #endif
   }
 #ifdef PROFILE_TMP
-  double t2 = gettime();
-  time_FL += t2 - t1;
+  auto t2 = std::chrono::steady_clock::now();
+  time_FL += std::chrono::duration_cast<std::chrono::nanoseconds>(t2-t1).count();
 #endif
   return(cost);
 }
@@ -393,7 +387,7 @@ float pFL(Points *points, int *feasible, int numfeasible,
 int selectfeasible_fast(Points *points, int **feasible, int kmin, int pid, pthread_barrier_t* barrier)
 {
 #ifdef PROFILE_TMP
-  double t1 = gettime();
+  auto t1 = std::chrono::steady_clock::now();
 #endif
 
   int numfeasible = points->num;
@@ -457,8 +451,8 @@ int selectfeasible_fast(Points *points, int **feasible, int kmin, int pid, pthre
   }
   free(accumweight);
 #ifdef PROFILE_TMP
-  double t2 = gettime();
-  time_select_feasible += t2-t1;
+  auto t2 = std::chrono::steady_clock::now();
+  time_select_feasible += std::chrono::duration_cast<std::chrono::nanoseconds>(t2-t1).count();
 #endif
   return numfeasible;
 }
@@ -701,7 +695,7 @@ void* localSearchSub(void* arg_) {
 
 void localSearch( Points* points, long kmin, long kmax, long* kfinal ) {
 #ifdef PROFILE_TMP
-  double t1 = gettime();
+  auto t1 = std::chrono::steady_clock::now();
 #endif
 
   pthread_barrier_t barrier;
@@ -739,8 +733,8 @@ void localSearch( Points* points, long kmin, long kmax, long* kfinal ) {
 #endif
 
 #ifdef PROFILE_TMP
-  double t2 = gettime();
-  time_local_search += t2-t1;
+  auto t2 = std::chrono::steady_clock::now();
+  time_local_search += std::chrono::duration_cast<std::chrono::nanoseconds>(t2-t1).count();
 #endif
 
 }
@@ -915,32 +909,32 @@ int main(int argc, char **argv)
     stream = new FileStream(infilename);
   }
 #ifdef PROFILE_TMP
-  double t1 = gettime();
+  auto t1 = std::chrono::steady_clock::now();
 #endif
 #ifdef ENABLE_PARSEC_HOOKS
   __parsec_roi_begin();
 #endif
 #ifdef PROFILE_TMP
-  serial = 0.0;
-  cpu_gpu_memcpy = 0.0;
-  gpu_malloc = 0.0;
-  gpu_free = 0.0;
-  kernel_time = 0.0;
-  time_FL = 0.0;
+  serial = 0;
+  cpu_gpu_memcpy = 0;
+  gpu_malloc = 0;
+  gpu_free = 0;
+  kernel_time = 0;
+  time_FL = 0;
   cnt_speedy = 0;
 #endif
 
-  double sc_start = gettime();
+  auto sc_start = std::chrono::steady_clock::now();
   streamCluster(stream, kmin, kmax, dim, chunksize, clustersize, outfilename );
-  double sc_end = gettime();
-  printf("Streamcluster time = %lf (s)\n", sc_end-sc_start);
+  auto sc_end = std::chrono::steady_clock::now();
+  printf("Streamcluster time = %lf (s)\n", std::chrono::duration_cast<std::chrono::nanoseconds>(sc_end-sc_start).count() * 1e-9);
 
 #ifdef ENABLE_PARSEC_HOOKS
   __parsec_roi_end();
 #endif
 
 #ifdef PROFILE_TMP
-  gpu_free = gettime();
+  auto gpu_free_start = std::chrono::steady_clock::now();
 #endif
   free(coord_h);
   free(gl_lower);
@@ -953,31 +947,32 @@ int main(int argc, char **argv)
   sycl::free(p_d, q);
 
 #ifdef PROFILE_TMP
-  gpu_free = gettime() - gpu_free;
+  auto gpu_free_end = std::chrono::steady_clock::now();
+  gpu_free += std::chrono::duration_cast<std::chrono::nanoseconds>(gpu_free_end - gpu_free_start).count();
 
-  double t2 = gettime();
-  printf("Total time = %lf (s)\n",t2-t1);
+  auto t2 = std::chrono::steady_clock::now();
+  printf("Total time = %lf (s)\n", std::chrono::duration_cast<std::chrono::nanoseconds>(t2-t1).count() * 1e-9);
 #endif
 
   delete stream;
 
 #ifdef PROFILE_TMP
   printf("==== Detailed timing info ====\n");
-  printf("pgain = %lf (s)\n", time_gain);
-  printf("pgain_dist = %lf (s)\n", time_gain_dist);
-  printf("pgain_init = %lf (s)\n", time_gain_init);
-  printf("pselect = %lf (s)\n", time_select_feasible);
-  printf("pspeedy = %lf (s)\n", time_speedy);
-  printf("pshuffle = %lf (s)\n", time_shuffle);
-  printf("FL = %lf (s)\n", time_FL);
-  printf("localSearch = %lf (s)\n", time_local_search);
+  printf("pgain = %lf (s)\n", time_gain * 1e-9);
+  printf("pgain_dist = %lf (s)\n", time_gain_dist * 1e-9);
+  printf("pgain_init = %lf (s)\n", time_gain_init * 1e-9);
+  printf("pselect = %lf (s)\n", time_select_feasible * 1e-9);
+  printf("pspeedy = %lf (s)\n", time_speedy * 1e-9);
+  printf("pshuffle = %lf (s)\n", time_shuffle * 1e-9);
+  printf("FL = %lf (s)\n", time_FL * 1e-9);
+  printf("localSearch = %lf (s)\n", time_local_search * 1e-9);
   printf("\n");
-  printf("serial = %lf (s)\n", serial);
-  printf("CPU to GPU memory copy = %lf (s)\n", cpu_gpu_memcpy);
-  printf("GPU to CPU memory copy back = %lf (s)\n", memcpy_back);
-  printf("GPU malloc = %lf (s)\n", gpu_malloc);
-  printf("GPU free = %lf (s)\n", gpu_free);
-  printf("GPU kernels = %lf (s)\n", kernel_time);
+  printf("serial = %lf (s)\n", serial * 1e-9);
+  printf("CPU to GPU memory copy = %lf (s)\n", cpu_gpu_memcpy * 1e-9);
+  printf("GPU to CPU memory copy back = %lf (s)\n", memcpy_back * 1e-9);
+  printf("GPU malloc = %lf (s)\n", gpu_malloc * 1e-9);
+  printf("GPU free = %lf (s)\n", gpu_free * 1e-9);
+  printf("GPU kernels = %lf (s)\n", kernel_time * 1e-9);
 #endif
 #ifdef ENABLE_PARSEC_HOOKS
   __parsec_bench_end();

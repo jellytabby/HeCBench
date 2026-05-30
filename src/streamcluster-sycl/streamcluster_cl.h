@@ -41,13 +41,13 @@ static int c;      // counters
 
 float pgain( long x, Points *points, float z, long int *numcenters,
              int kmax, bool *is_center, int *center_table, char *switch_membership,
-             double *serial, double *cpu_gpu_memcpy, double *memcpy_back,
-             double *gpu_malloc, double *kernel_time) {
+             long *serial, long *cpu_gpu_memcpy, long *memcpy_back,
+             long *gpu_malloc, long *kernel_time) {
 
   float gl_cost = 0;
   try{
 #ifdef PROFILE_TMP
-    double t1 = gettime();
+    auto t1 = std::chrono::steady_clock::now();
 #endif
     int K = *numcenters;   // number of centers
     int num = points->num; // number of points
@@ -61,14 +61,14 @@ float pgain( long x, Points *points, float z, long int *numcenters,
     }
 
 #ifdef PROFILE_TMP
-    double t2 = gettime();
-    *serial += t2 - t1;
+    auto t2 = std::chrono::steady_clock::now();
+    *serial += std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count();
 #endif
 
     /***** initial memory allocation and preparation for transfer : execute once *****/
     if( c == 0 ) {
 #ifdef PROFILE_TMP
-      double t3 = gettime();
+      auto t3 = std::chrono::steady_clock::now();
 #endif
       coord_h = (float*) malloc( num * dim * sizeof(float));                // coordinates (host)
       gl_lower = (float*) malloc( kmax * sizeof(float) );
@@ -82,8 +82,8 @@ float pgain( long x, Points *points, float z, long int *numcenters,
           coord_h[ (num*i)+j ] = points->p[j].coord[i];
       }
 #ifdef PROFILE_TMP
-      double t4 = gettime();
-      *serial += t4 - t3;
+      auto t4 = std::chrono::steady_clock::now();
+      *serial += std::chrono::duration_cast<std::chrono::nanoseconds>(t4 - t3).count();
 #endif
 
       work_mem_d = sycl::malloc_device<float>((kmax+1) * num, q);
@@ -93,8 +93,8 @@ float pgain( long x, Points *points, float z, long int *numcenters,
       coord_d = sycl::malloc_device<float> (dim * num, q);
 
 #ifdef PROFILE_TMP
-      double t5 = gettime();
-      *gpu_malloc += t5 - t4;
+      auto t5 = std::chrono::steady_clock::now();
+      *gpu_malloc += std::chrono::duration_cast<std::chrono::nanoseconds>(t5 - t4).count();
 #endif
 
       // copy coordinate to device memory
@@ -102,13 +102,13 @@ float pgain( long x, Points *points, float z, long int *numcenters,
 
 #ifdef PROFILE_TMP
       q.wait();
-      double t6 = gettime();
-      *cpu_gpu_memcpy += t6 - t4;
+      auto t6 = std::chrono::steady_clock::now();
+      *cpu_gpu_memcpy += std::chrono::duration_cast<std::chrono::nanoseconds>(t6 - t4).count();
 #endif
     }    // first iteration
 
 #ifdef PROFILE_TMP
-    double t100 = gettime();
+    auto t100 = std::chrono::steady_clock::now();
 #endif
 
     for(int i=0; i<num; i++){
@@ -118,11 +118,11 @@ float pgain( long x, Points *points, float z, long int *numcenters,
     }
 
 #ifdef PROFILE_TMP
-    double t101 = gettime();
-    *serial += t101 - t100;
+    auto t101 = std::chrono::steady_clock::now();
+    *serial += std::chrono::duration_cast<std::chrono::nanoseconds>(t101 - t100).count();
 #endif
 #ifdef PROFILE_TMP
-    double t7 = gettime();
+    auto t7 = std::chrono::steady_clock::now();
 #endif
     /***** memory transfer from host to device *****/
     q.memcpy(center_table_d, center_table, sizeof(int)*num);
@@ -130,8 +130,8 @@ float pgain( long x, Points *points, float z, long int *numcenters,
 
 #ifdef PROFILE_TMP
     q.wait();
-    double t8 = gettime();
-    *cpu_gpu_memcpy += t8 - t7;
+    auto t8 = std::chrono::steady_clock::now();
+    *cpu_gpu_memcpy += std::chrono::duration_cast<std::chrono::nanoseconds>(t8 - t7).count();
 #endif
 
     /***** kernel execution *****/
@@ -139,7 +139,7 @@ float pgain( long x, Points *points, float z, long int *numcenters,
     size_t smSize = dim; // * sizeof(float);
 
 #ifdef PROFILE_TMP
-    double t9 = gettime();
+    auto t9 = std::chrono::steady_clock::now();
 #endif
 
     q.memset(switch_membership_d, 0, num * sizeof(char));
@@ -168,8 +168,8 @@ float pgain( long x, Points *points, float z, long int *numcenters,
 
 #ifdef PROFILE_TMP
     q.wait();
-    double t10 = gettime();
-    *kernel_time += t10 - t9;
+    auto t10 = std::chrono::steady_clock::now();
+    *kernel_time += std::chrono::duration_cast<std::chrono::nanoseconds>(t10 - t9).count();
 #endif
 
     /***** copy back to host for CPU side work *****/
@@ -178,8 +178,8 @@ float pgain( long x, Points *points, float z, long int *numcenters,
     q.wait();
 
 #ifdef PROFILE_TMP
-    double t11 = gettime();
-    *memcpy_back += t11 - t10;
+    auto t11 = std::chrono::steady_clock::now();
+    *memcpy_back += std::chrono::duration_cast<std::chrono::nanoseconds>(t11 - t10).count();
 #endif
 
     /****** cpu side work *****/
@@ -228,8 +228,8 @@ float pgain( long x, Points *points, float z, long int *numcenters,
       gl_cost = 0;
 
 #ifdef PROFILE_TMP
-    double t12 = gettime();
-    *serial += t12 - t11;
+    auto t12 = std::chrono::steady_clock::now();
+    *serial += std::chrono::duration_cast<std::chrono::nanoseconds>(t12 - t11).count();
 #endif
     c++;
   }

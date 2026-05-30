@@ -25,8 +25,8 @@
 #include <stdio.h>
 #include <iostream>
 #include <fstream>
+#include <chrono>
 #include <stdlib.h>
-#include <sys/time.h>
 #include <string.h>
 #include <assert.h>
 #include <math.h>
@@ -131,7 +131,6 @@ private:
 };
 
 /* function prototypes */
-double gettime();
 int isIdentical(float*, float*, int);
 //static int floatcomp(const void*, const void*);
 void shuffle(Points*);
