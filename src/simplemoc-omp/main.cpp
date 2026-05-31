@@ -348,8 +348,8 @@ int main( int argc, char * argv[] )
 
   float* simd_vecs_debug = (float*) malloc (sizeof(float)*I->egroups*14);
 
-  double kstart, kstop;
-  double start = get_time();
+  std::chrono::steady_clock::time_point kstart, kstop;
+  auto start = std::chrono::steady_clock::now();
 
   int fine_axial_intervals = I->fine_axial_intervals;
   int egroups = I->egroups;
@@ -372,7 +372,7 @@ int main( int argc, char * argv[] )
                                     state_flux_acc[0:egroups]) \
                         map(alloc: v_acc[0:egroups*14])
   {
-    kstart = get_time();
+    kstart = std::chrono::steady_clock::now();
 
     for (int n = 0; n < I->repeat; n++) {
 
@@ -508,7 +508,7 @@ int main( int argc, char * argv[] )
       }
     }
 
-    kstop = get_time();
+    kstop = std::chrono::steady_clock::now();
 
 #ifdef VERIFY
 #pragma omp target update from (v_acc[0:14*egroups])
@@ -516,7 +516,7 @@ int main( int argc, char * argv[] )
   }
 
   printf("Simulation Complete.\n");
-  double stop = get_time();
+  auto stop = std::chrono::steady_clock::now();
 
 #ifdef VERIFY
   const float* q0 = simd_vecs_debug;
@@ -569,11 +569,13 @@ int main( int argc, char * argv[] )
   center_print("RESULTS SUMMARY", 79);
   border_print();
 
-  printf("%-25s%.3lf seconds\n", "Total kernel time:", kstop-kstart);
-  printf("%-25s%.3lf seconds\n", "Device offload time:", stop-start);
+  printf("%-25s%.3lf seconds\n", "Total kernel time:",
+         std::chrono::duration_cast<std::chrono::nanoseconds>(kstop-kstart).count() * 1e-9);
+  printf("%-25s%.3lf seconds\n", "Device offload time:",
+         std::chrono::duration_cast<std::chrono::nanoseconds>(stop-start).count() * 1e-9);
 
-  double tpi = ((double) (kstop - kstart) / (I->repeat) /
-                (double)I->segments / (double) I->egroups) * 1.0e9;
+  double tpi = (double) std::chrono::duration_cast<std::chrono::nanoseconds>(kstop - kstart).count() /
+                (I->repeat) / (double)I->segments / (double) I->egroups;
   printf("%-25s%.3lf ns\n", "Time per Intersection:", tpi);
   border_print();
 

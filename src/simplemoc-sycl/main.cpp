@@ -351,8 +351,7 @@ int main( int argc, char * argv[] )
   float* simd_vecs_debug = (float*) malloc (sizeof(float)*I->egroups*14);
 #endif
 
-  double kstart, kstop;
-  double start = get_time();
+  auto start = std::chrono::steady_clock::now();
 
 
 #ifdef USE_GPU
@@ -394,7 +393,7 @@ int main( int argc, char * argv[] )
   sycl::range<1> gws ((segments+127)/128*128);
   sycl::range<1> lws (128);
 
-  kstart = get_time();
+  auto kstart = std::chrono::steady_clock::now();
 
   for (int n = 0; n < I->repeat; n++) {
     q.submit([&](sycl::handler &h) {
@@ -533,7 +532,7 @@ int main( int argc, char * argv[] )
   }
 
   q.wait();
-  kstop = get_time();
+  auto kstop = std::chrono::steady_clock::now();
 
   q.memcpy(state_flux_device, d_state_flux, sizeof(float) * I->egroups);
 
@@ -553,7 +552,7 @@ int main( int argc, char * argv[] )
   sycl::free(d_state_flux, q);
   sycl::free(d_simd_vecs, q);
 
-  double stop = get_time();
+  auto stop = std::chrono::steady_clock::now();
   printf("Simulation Complete.\n");
 
 #ifdef VERIFY
@@ -607,11 +606,13 @@ int main( int argc, char * argv[] )
   center_print("RESULTS SUMMARY", 79);
   border_print();
 
-  printf("%-25s%.3lf seconds\n", "Total kernel time:", kstop-kstart);
-  printf("%-25s%.3lf seconds\n", "Device offload time:", stop-start);
+  printf("%-25s%.3lf seconds\n", "Total kernel time:",
+         std::chrono::duration_cast<std::chrono::nanoseconds>(kstop-kstart).count() * 1e-9);
+  printf("%-25s%.3lf seconds\n", "Device offload time:",
+         std::chrono::duration_cast<std::chrono::nanoseconds>(stop-start).count() * 1e-9);
 
-  double tpi = ((double) (kstop - kstart) / (I->repeat) /
-                (double)I->segments / (double) I->egroups) * 1.0e9;
+  double tpi = (double) std::chrono::duration_cast<std::chrono::nanoseconds>(kstop - kstart).count() /
+                (I->repeat) / (double)I->segments / (double) I->egroups;
   printf("%-25s%.3lf ns\n", "Time per Intersection:", tpi);
   border_print();
 

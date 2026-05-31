@@ -24,11 +24,9 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <sys/time.h>
+#include <chrono>
 #include "args.h"
 #include "kernel.h"
-
-#define TDIFF(ts, te) (te.tv_sec - ts.tv_sec + (te.tv_usec - ts.tv_usec) * 1e-6)
 
 #define d2r M_PI/180.0
 
@@ -43,9 +41,7 @@ void compileHistograms(long long* DDs, long long* DRs, long long* RRs, long long
 
 int main(int argc, char* argv[])
 {
-  struct timeval T0, T1;
-
-  gettimeofday(&T0, NULL);
+  auto T0 = std::chrono::steady_clock::now();
 
   options args;
   parse_args(argc, argv, &args);
@@ -97,8 +93,8 @@ int main(int argc, char* argv[])
 
   compileHistograms(DDs, DRs, RRs, &DD, &DR, &RR, &args);
 
-  gettimeofday(&T1, NULL);
-  float timetemp = TDIFF(T0, T1);
+  auto T1 = std::chrono::steady_clock::now();
+  double timetemp = std::chrono::duration_cast<std::chrono::nanoseconds>(T1 - T0).count() * 1e-9;
   printf("DONE! after %f\n", timetemp);
 
   if(args.njk == 1) args.njk = 0; // # of jackknives should only be 1 if jackknife resampling is not to be used.

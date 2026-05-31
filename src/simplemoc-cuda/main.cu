@@ -495,7 +495,7 @@ int main( int argc, char * argv[] )
   float* simd_vecs_debug = (float*) malloc (sizeof(float)*I->egroups*14);
 #endif
 
-  double start = get_time();
+  auto start = std::chrono::steady_clock::now();
 
   int fine_axial_intervals = I->fine_axial_intervals;
   int egroups = I->egroups;
@@ -544,7 +544,7 @@ int main( int argc, char * argv[] )
   dim3 grids ((segments+127)/128*128);
   dim3 threads (128);
 
-  double kstart = get_time();
+  auto kstart = std::chrono::steady_clock::now();
 
   for (int n = 0; n < I->repeat; n++) 
     att<<<grids, threads>>>(
@@ -560,7 +560,7 @@ int main( int argc, char * argv[] )
         segments );
 
   cudaDeviceSynchronize();
-  double kstop = get_time();
+  auto kstop = std::chrono::steady_clock::now();
 
   cudaMemcpy(state_flux_device, d_state_flux, 
       sizeof(float) * I->egroups,
@@ -584,7 +584,7 @@ int main( int argc, char * argv[] )
   cudaFree(d_state_flux);
   cudaFree(d_simd_vecs);
   
-  double stop = get_time();
+  auto stop = std::chrono::steady_clock::now();
   printf("Simulation Complete.\n");
 
 #ifdef VERIFY
@@ -638,11 +638,13 @@ int main( int argc, char * argv[] )
   center_print("RESULTS SUMMARY", 79);
   border_print();
 
-  printf("%-25s%.3lf seconds\n", "Total kernel time:", kstop-kstart);
-  printf("%-25s%.3lf seconds\n", "Device offload time:", stop-start);
+  printf("%-25s%.3lf seconds\n", "Total kernel time:",
+         std::chrono::duration_cast<std::chrono::nanoseconds>(kstop-kstart).count() * 1e-9);
+  printf("%-25s%.3lf seconds\n", "Device offload time:",
+         std::chrono::duration_cast<std::chrono::nanoseconds>(stop-start).count() * 1e-9);
 
-  double tpi = ((double) (kstop - kstart) / (I->repeat) /
-                (double)I->segments / (double) I->egroups) * 1.0e9;
+  double tpi = (double) std::chrono::duration_cast<std::chrono::nanoseconds>(kstop - kstart).count() /
+                (I->repeat) / (double)I->segments / (double) I->egroups;
   printf("%-25s%.3lf ns\n", "Time per Intersection:", tpi);
   border_print();
 

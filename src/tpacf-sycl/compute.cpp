@@ -26,7 +26,7 @@ Permission is hereby granted, free of charge, to any person obtaining a copy of 
 #define _GPU_COMPUTE_H_
 
 #include <string.h>
-#include <sys/time.h>
+#include <chrono>
 #include <sycl/sycl.hpp>
 using double3 = sycl::double3;
 
@@ -35,8 +35,6 @@ using double3 = sycl::double3;
 #include "histogram_kernel.cpp"
 #include "model_io.cpp"
 #include "args.h"
-
-#define TDIFF(ts, te) (te.tv_sec - ts.tv_sec + (te.tv_usec - ts.tv_usec) * 1e-6)
 
 #define GRID_SIZE  (1 << LOG2_GRID_SIZE)
 
@@ -54,8 +52,7 @@ cartesian h_idata1;
 cartesian h_idata2;
 
 // Performance
-struct timeval t1, t0;
-float t_Compute = 0.0f;
+long t_Compute = 0;
 
 // Used to compute DD or RR, takes advantage of symmetry to reduce number of dot products and waterfall searches
 // required by half. Unfortunately, due to the limitations of the histogram kernel, every element of d_odata still
@@ -313,43 +310,42 @@ void doComputeGPU(char *dataName, char *randomNames, int nr,
 
   histoInit(q);
 
-  struct timeval t3, t2, t1, t0;
-  float t_computeDD=0, t_computeRRS=0, t_computeDRS=0, t_fileIO=0;
+  long t_computeDD = 0, t_computeRRS = 0, t_computeDRS = 0, t_fileIO = 0;
 
   q.wait();
-  gettimeofday(&t0, NULL);
+  auto t0 = std::chrono::steady_clock::now();
 
   char fname[256];
   readdatafile(dataName, h_idata1, dataSize);
 
-  gettimeofday(&t1, NULL);
+  auto t1 = std::chrono::steady_clock::now();
 
   // Compute DD
   tileComputeSymm(0, dataSize, njk, dkerneljkSizes, nBins, *DDs, q);
 
-  gettimeofday(&t2, NULL);
+  auto t2 = std::chrono::steady_clock::now();
 
-  t_fileIO += TDIFF(t0, t1);
-  t_computeDD = TDIFF(t1, t2);
+  t_fileIO += std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).count();
+  t_computeDD = std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count();
 
   for(int i=0; i<nr; i++) {
     sprintf(fname, "%s.%i", randomNames, i+1);
-    gettimeofday(&t0, NULL);
+    t0 = std::chrono::steady_clock::now();
 
     readdatafile(fname, h_idata2, randomSize);
-    gettimeofday(&t1, NULL);
+    t1 = std::chrono::steady_clock::now();
 
     // Compute DR_i
     tileCompute(dataSize, randomSize, njk, dkerneljkSizes, nBins, &(*DRs)[njk*nBins*i], q);
-    gettimeofday(&t2, NULL);
+    t2 = std::chrono::steady_clock::now();
 
     // Compute RR_i
     tileComputeSymm(1, randomSize, njk, rkerneljkSizes, nBins, &(*RRs)[nBins*i], q);
-    gettimeofday(&t3, NULL);
+    auto t3 = std::chrono::steady_clock::now();
 
-    t_fileIO += TDIFF(t0, t1);  
-    t_computeDRS += TDIFF(t1, t2);
-    t_computeRRS += TDIFF(t2, t3);
+    t_fileIO += std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).count();
+    t_computeDRS += std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count();
+    t_computeRRS += std::chrono::duration_cast<std::chrono::nanoseconds>(t3 - t2).count();
   }
 
   // Correct for error introduced by padding vectors.
@@ -384,13 +380,13 @@ void doComputeGPU(char *dataName, char *randomNames, int nr,
   free(h_idata2.jk);
 
   printf("================================================\n");
-  printf("Time to compute DD: %.4f sec\n", t_computeDD);
-  printf("Time to compute RRS: %.4f sec\n", t_computeRRS);
-  printf("Time to compute DRS: %.4f sec\n", t_computeDRS);
-  printf("Time to load data files: %.4f sec\n", t_fileIO);
-  printf("Time to compute DD, RRS, & DRS: %.4f sec\n", t_computeDD+t_computeRRS+t_computeDRS);
-  printf("TOTAL time (DD+RRS+DRS+IO): %.4f sec\n", t_computeDD+t_computeRRS+t_computeDRS+t_fileIO);
-  printf("================================================\n");  
+  printf("Time to compute DD: %.4f sec\n", t_computeDD * 1e-9);
+  printf("Time to compute RRS: %.4f sec\n", t_computeRRS * 1e-9);
+  printf("Time to compute DRS: %.4f sec\n", t_computeDRS * 1e-9);
+  printf("Time to load data files: %.4f sec\n", t_fileIO * 1e-9);
+  printf("Time to compute DD, RRS, & DRS: %.4f sec\n", (t_computeDD+t_computeRRS+t_computeDRS) * 1e-9);
+  printf("TOTAL time (DD+RRS+DRS+IO): %.4f sec\n", (t_computeDD+t_computeRRS+t_computeDRS+t_fileIO) * 1e-9);
+  printf("================================================\n");
 }
 
 void compileHistograms(long long* DDs, long long* DRs, long long* RRs, long long*** DD, long long*** DR, 

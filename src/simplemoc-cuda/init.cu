@@ -102,18 +102,6 @@ SIMD_Vectors allocate_simd_vectors(Input * I)
   return A;
 }
 
-// Timer function. Depends on if compiled with MPI, openmp, or vanilla
-double get_time(void)
-{
-#ifdef OPENMP
-  return omp_get_wtime();
-#endif
-
-  struct timeval tv;
-  gettimeofday(&tv, NULL);
-  return (double) tv.tv_usec * 1e-6f + tv.tv_sec;
-}
-
 Source* copy_sources( Input * I, Source *S ) 
 {
   Source * sources = (Source *) malloc( sizeof(Source));

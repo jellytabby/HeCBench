@@ -1,4 +1,3 @@
-#include <chrono>
 #include <cuda.h>
 #include "utils.h"
 
@@ -80,7 +79,7 @@ __global__ void winograd_conv2d(
 
 int main(int argc, char* argv[]) {
 
-  double start = rtclock();
+  auto start = std::chrono::steady_clock::now();
 
   DATA_TYPE *A = (DATA_TYPE*)malloc(MAP_SIZE * MAP_SIZE * sizeof(DATA_TYPE));
   DATA_TYPE *B = (DATA_TYPE*)malloc((MAP_SIZE - 2) * (MAP_SIZE - 2) * sizeof(DATA_TYPE));
@@ -121,8 +120,8 @@ int main(int argc, char* argv[]) {
 
   bool pass = true;
 
-  // sweep over cpu_offset 
-  double co_time = 0.0;
+  // sweep over cpu_offset (accumulated in nanoseconds)
+  long co_time = 0;
 
   for (int cpu_offset = 0; cpu_offset <= 100; cpu_offset++) {
 
@@ -148,7 +147,7 @@ int main(int argc, char* argv[]) {
     }
 
     // co-execution of host and device
-    double co_start = rtclock();
+    auto co_start = std::chrono::steady_clock::now();
 
     if (gpu_run) {
       winograd_conv2d<<<grid, block>>>(d_A, d_C, d_B, global_offset[0], global_offset[1]);
@@ -164,7 +163,8 @@ int main(int argc, char* argv[]) {
 
     cudaMemcpy(B_outputFromGpu, d_B, (MAP_SIZE-2) * (MAP_SIZE-2) * sizeof(DATA_TYPE), cudaMemcpyDeviceToHost);
 
-    co_time += rtclock() - co_start;
+    co_time += std::chrono::duration_cast<std::chrono::nanoseconds>(
+               std::chrono::steady_clock::now() - co_start).count();
 
 #ifdef VERBOSE
     if (cpu_run) printf("run on host\n");
@@ -187,11 +187,12 @@ int main(int argc, char* argv[]) {
   free(B_outputFromGpu);
   free(C);
 
-  double end = rtclock();
-  printf("Co-execution time: %lf s\n", co_time);
-  printf("Total time: %lf s\n", end - start);
+  auto end = std::chrono::steady_clock::now();
+  long total_time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+  printf("Co-execution time: %lf s\n", co_time * 1e-9);
+  printf("Total time: %lf s\n", total_time * 1e-9);
   printf("Ratio of co-execution time to total time: %.2lf%%\n",
-         100.0 * co_time / (end - start));
+         100.0 * co_time / (double)total_time);
 
   return 0;
 }

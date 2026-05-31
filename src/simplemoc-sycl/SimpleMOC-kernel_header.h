@@ -6,7 +6,7 @@
 #include<stdlib.h>
 #include<math.h>
 #include<string.h>
-#include<sys/time.h>
+#include<chrono>
 #include<stdbool.h>
 #include<limits.h>
 #include<assert.h>
@@ -84,7 +84,6 @@ Source* copy_sources( Input * I, Source *S );
 Input * set_default_input( void );
 SIMD_Vectors aligned_allocate_simd_vectors(Input * I);
 SIMD_Vectors allocate_simd_vectors(Input * I);
-double get_time(void);
 
 // io.c
 void logo(int version);
