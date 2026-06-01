@@ -37,7 +37,7 @@ $(LAPACK_BUILD)/lib/libcblas.so:
 	cmake -S "$(LAPACK_DIR)" -B "$(LAPACK_BUILD)" \
 	    -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON \
 	    -DCBLAS=ON -DLAPACKE=ON \
-	    -DBUILD_INDEX64=OFF -DBUILD_INDEX64_EXT_API=ON \
+	    -DBUILD_INDEX64=OFF -DBUILD_INDEX64_EXT_API=OFF \
 	    -DBUILD_TESTING=OFF
 	cmake --build "$(LAPACK_BUILD)" -j
 else
@@ -53,6 +53,6 @@ endif
 #   - launch xhpl under mpirun
 run: all
 	cd src/hpl-2.3/bin/intel64 && \
-	    cp ../../../../datafiles/HPL_small_gpu.dat HPL.dat && \
-	    LD_LIBRARY_PATH=../../src/cuda:$(LAdir)/lib:$(LD_LIBRARY_PATH) \
-	        mpirun -n 1 ./xhpl
+	cp ../../../../datafiles/HPL_small_gpu.dat HPL.dat && \
+	LD_LIBRARY_PATH=../../src/cuda:$(LAdir)/lib:$(LD_LIBRARY_PATH) \
+	mpirun -n 1 ./xhpl
