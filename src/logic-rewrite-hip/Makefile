@@ -55,4 +55,4 @@ clean:
 	rm -rf $(program) $(obj)
 
 run: $(program)
-	$(LAUNCHER) ./$(program) -c "read ./benchmarks/arithmetic/hyp.aig; resyn2; write hyp_resyn2.aig"
+	$(LAUNCHER) ./$(program) -c "read ../logic-rewrite-cuda/benchmarks/arithmetic/hyp.aig; resyn2; write hyp_resyn2.aig"
