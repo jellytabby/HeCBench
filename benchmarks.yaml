@@ -63,7 +63,7 @@ adv:
   models: [cuda, hip, omp, sycl]
   test:
     regex: '(?:elapsed time=)([0-9.+-e]+)(?: )'
-    args: ["16", "16", "16"]
+    args: ["7", "15", "16"]
     timeout: 300
 
 aes:
