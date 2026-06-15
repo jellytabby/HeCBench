@@ -281,14 +281,9 @@ static __global__ void generateSpanningTree(
   int start,
   int end)
 {
-#if defined(__GFX8__) || defined(__GFX9__)
-  #define warpsize 64
-#else
-  #define warpsize 32
-#endif
-  const int from = (threadIdx.x + blockIdx.x * ThreadsPerBlock) / warpsize;
-  const int incr = (gridDim.x * ThreadsPerBlock) / warpsize;
-  const int lane = threadIdx.x % warpsize;
+  const int from = (threadIdx.x + blockIdx.x * ThreadsPerBlock) / warpSize;
+  const int incr = (gridDim.x * ThreadsPerBlock) / warpSize;
+  const int lane = threadIdx.x % warpSize;
   const int seed2 = seed * seed + seed;
   const int bit = (level & 1) | 2;
 
@@ -296,7 +291,7 @@ static __global__ void generateSpanningTree(
     const int node = queue[i];
     const int me = (node << 2) | bit;
     if (lane == 0) atomicAnd(&parent[node], ~3);
-    for (int j = nindex[node + 1] - 1 - lane; j >= nindex[node]; j -= warpsize) {  // reverse order on purpose
+    for (int j = nindex[node + 1] - 1 - lane; j >= nindex[node]; j -= warpSize) {  // reverse order on purpose
       const int neighbor = nlist[j] >> 1;
       const int seed3 = neighbor ^ seed2;
       const int hash_me = hash(me ^ seed3);
@@ -369,14 +364,9 @@ static __global__ void treelabel(
         int start,
         int end)
 {
-#if defined(__GFX8__) || defined(__GFX9__)
-  #define warpsize 64
-#else
-  #define warpsize 32
-#endif
-  const int from = (threadIdx.x + blockIdx.x * ThreadsPerBlock) / warpsize;
-  const int incr = (gridDim.x * ThreadsPerBlock) / warpsize;
-  const int lane = threadIdx.x % warpsize;
+  const int from = (threadIdx.x + blockIdx.x * ThreadsPerBlock) / warpSize;
+  const int incr = (gridDim.x * ThreadsPerBlock) / warpSize;
+  const int lane = threadIdx.x % warpSize;
   //cuv
   // top down: label tree + set nlist flag + set edge info + move tree nodes to front + make parent edge first in list
   for (int i = start + from; i < end; i += incr) {
@@ -388,7 +378,7 @@ static __global__ void treelabel(
 
     // set nlist flag + set edge info
     int lbl = (nodelabel >> 1) + 1;
-    for (int j = beg + lane; __any(j < end); j += warpsize) {
+    for (int j = beg + lane; __any(j < end); j += warpSize) {
       int lblinc = 0;
       int neighbor = -1;
       bool cond = false;
@@ -400,7 +390,7 @@ static __global__ void treelabel(
         }
       }
       const int currcount = lblinc;
-      for (int d = 1; d < warpsize; d *= 2) {
+      for (int d = 1; d < warpSize; d *= 2) {
         const int tmp = __shfl_up(lblinc, d);
         if (lane >= d) lblinc += tmp;
       }
@@ -413,14 +403,14 @@ static __global__ void treelabel(
         einfo[j].end = (einfo[j].end & 1) | ((lbl - 1) << 1);
         nlist[j] |= 1;  // child edge is in tree
       }
-      lbl = __shfl(lbl, warpsize - 1);
+      lbl = __shfl(lbl, warpSize - 1);
     }
 
     // move tree nodes to front
     const int len = end - beg;
     if (len > 0) {
       enum {none, some, left, right};
-      if (len <= warpsize) {
+      if (len <= warpSize) {
         const int src = beg + lane;
         int b, e, in, neg,  n, state = none;
         if (lane < len) {
@@ -448,7 +438,7 @@ static __global__ void treelabel(
         int lp = beg;
         int rp = end - 1;
         int state = some;
-        int read = beg + min(warpsize, len);
+        int read = beg + min(warpSize, len);
         int src = beg + lane;
         int b = einfo[src].beg;
         int e = einfo[src].end;
@@ -534,7 +524,7 @@ static __global__ void treelabel(
 
     //find paredge here
     int paredge = -1;
-    for (int j = beg + lane; __any(j < end); j += warpsize) {
+    for (int j = beg + lane; __any(j < end); j += warpSize) {
       if (j < end) {
         const int neighbor = nlist[j] >> 1;
         if (neighbor == par) {
@@ -544,7 +534,7 @@ static __global__ void treelabel(
       if (__any(paredge >= 0)) break;
     }
     int pos = -1;
-    for (int j = beg + lane; __any(j < end); j += warpsize) {
+    for (int j = beg + lane; __any(j < end); j += warpSize) {
       if (j < end) {
         const int neighbor = nlist[j] >> 1;
         if (((parent[neighbor] >> 2) != node)) {
@@ -613,14 +603,9 @@ static __global__ void processCycles(
   const EdgeInfo* const __restrict__ einfo,
   bool* const  __restrict__ minus)
 {
-#if defined(__GFX8__) || defined(__GFX9__)
-  #define warpsize 64
-#else
-  #define warpsize 32
-#endif
-  const int from = (threadIdx.x + blockIdx.x * ThreadsPerBlock) / warpsize;
-  const int incr = (gridDim.x * ThreadsPerBlock) / warpsize;
-  const int lane = threadIdx.x % warpsize;
+  const int from = (threadIdx.x + blockIdx.x * ThreadsPerBlock) / warpSize;
+  const int incr = (gridDim.x * ThreadsPerBlock) / warpSize;
+  const int lane = threadIdx.x % warpSize;
   for (int i = from; i < nodes; i += incr) {
     const int target0 = label[i];
     const int target1 = target0 | 1;
@@ -640,7 +625,7 @@ static __global__ void processCycles(
         }
         minus[j] = sum & 1;
       }
-      j -= warpsize;
+      j -= warpSize;
     }
    //__syncwarp();
   }
@@ -697,19 +682,14 @@ static __global__ void compute1(
   const bool* const __restrict__ minus,
   int* const __restrict__ negCnt)
 {
-#if defined(__GFX8__) || defined(__GFX9__)
-  #define warpsize 64
-#else
-  #define warpsize 32
-#endif
-  const int from = (threadIdx.x + blockIdx.x * ThreadsPerBlock) / warpsize;
-  const int incr = (gridDim.x * ThreadsPerBlock) / warpsize;
-  const int lane = threadIdx.x % warpsize;
+  const int from = (threadIdx.x + blockIdx.x * ThreadsPerBlock) / warpSize;
+  const int incr = (gridDim.x * ThreadsPerBlock) / warpSize;
+  const int lane = threadIdx.x % warpSize;
   for (int v = from; v < nodes; v += incr) {
     const int beg = nidx[v];
     const int end = nidx[v + 1];
     int vstat = representative(v, label);
-    for (int j = beg + lane; j < end; j += warpsize) {
+    for (int j = beg + lane; j < end; j += warpSize) {
       const int nli = nlist[j] >> 1;
       if (minus[j]) {
         negCnt[j]++;
@@ -791,14 +771,9 @@ static __global__ void ccHopCount(
   int* const __restrict__ ws1,
   int* const __restrict__ ws2)
 {
-#if defined(__GFX8__) || defined(__GFX9__)
-  #define warpsize 64
-#else
-  #define warpsize 32
-#endif
-  const int from = (threadIdx.x + blockIdx.x * ThreadsPerBlock) / warpsize;
-  const int incr = (gridDim.x * ThreadsPerBlock) / warpsize;
-  const int lane = threadIdx.x % warpsize;
+  const int from = (threadIdx.x + blockIdx.x * ThreadsPerBlock) / warpSize;
+  const int incr = (gridDim.x * ThreadsPerBlock) / warpSize;
+  const int lane = threadIdx.x % warpSize;
 
   const int hi2 = hi & 0xffffffff;
   for (int v = from; v < nodes; v += incr) {
@@ -806,7 +781,7 @@ static __global__ void ccHopCount(
     if (lblv == v) {
       count[lblv] = (lblv == hi2) ? 0 : INT_MAX - 1;  // init count
     }
-    for (int j = nidx[v] + lane; j < nidx[v + 1]; j += warpsize) {
+    for (int j = nidx[v] + lane; j < nidx[v + 1]; j += warpSize) {
       const int nli = nlist[j] >> 1;
       const int lbln = label[nli];
       if (lblv < lbln) {  // only one direction
