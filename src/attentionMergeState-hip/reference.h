@@ -31,14 +31,14 @@ void reference (
           float* __restrict__ lse,           // [NUM_TOKENS,NUM_HEADS] or nullptr
     const float* __restrict__ prefix_lse,    // [NUM_TOKENS,NUM_HEADS]
     const float* __restrict__ suffix_lse,    // [NUM_TOKENS,NUM_HEADS]
-    int num_tokens,
-    int num_heads,
-    int head_size)
+    uint64_t num_tokens,
+    uint32_t num_heads,
+    uint32_t head_size)
 {
     // compute per-element scale factors p_scale and s_scale.
-    for (int t = 0; t < num_tokens; ++t) {
-      for (int h = 0; h < num_heads; ++h) {
-            const int lse_idx = t * num_heads + h;
+    for (uint64_t t = 0; t < num_tokens; ++t) {
+      for (uint32_t h = 0; h < num_heads; ++h) {
+            const uint64_t lse_idx = t * num_heads + h;
 
             // exp(-inf)=0, exp(+inf)=NaN
             float p_lse = prefix_lse[lse_idx];
@@ -69,8 +69,8 @@ void reference (
             const float s_scale = s_exp / out_se;
 
             // write output
-            const int base = t * num_heads * head_size + h * head_size;
-            for (int d = 0; d < head_size; ++d) {
+            const uint64_t base = t * num_heads * head_size + h * head_size;
+            for (uint32_t d = 0; d < head_size; ++d) {
                 float sum = to_float32(prefix_output[base + d]) * p_scale +
                             to_float32(suffix_output[base + d]) * s_scale;
                 from_float32(output[base + d], sum);

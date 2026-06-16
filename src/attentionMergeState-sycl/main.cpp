@@ -81,7 +81,7 @@ void merge_attn_states_kernel(scalar_t *__restrict__ output,
                               const float *__restrict__ prefix_lse,
                               const float *__restrict__ suffix_lse,
 
-                              const uint32_t num_tokens,
+                              const uint64_t num_tokens,
                               const uint32_t num_heads,
                               const uint32_t head_size,
                               sycl::nd_item<1> &item)
@@ -92,28 +92,28 @@ void merge_attn_states_kernel(scalar_t *__restrict__ output,
   const uint32_t pack_size = 16 / sizeof(scalar_t);
   const uint32_t threads_per_head = head_size / pack_size;
 
-  const uint32_t global_idx = item.get_group(0) * NUM_THREADS + item.get_local_id(0);
-  const uint32_t token_head_threads = num_tokens * num_heads * threads_per_head;
+  const uint64_t global_idx = item.get_group(0) * NUM_THREADS + item.get_local_id(0);
+  const uint64_t token_head_threads = num_tokens * num_heads * threads_per_head;
 
   if (global_idx >= token_head_threads) return;
 
   // global_idx -> token_idx + head_idx + pack_idx
-  const uint32_t token_head_idx = global_idx / threads_per_head;
+  const uint64_t token_head_idx = global_idx / threads_per_head;
   const uint32_t pack_idx = global_idx % threads_per_head;
 
-  const uint32_t token_idx = token_head_idx / num_heads;
+  const uint64_t token_idx = token_head_idx / num_heads;
   const uint32_t head_idx = token_head_idx % num_heads;
 
   const uint32_t pack_offset = pack_idx * pack_size;
 
   // [NUM_TOKENS, NUM_HEADS, HEAD_SIZE]
-  const uint32_t head_offset = token_idx * num_heads * head_size + head_idx * head_size;
+  const uint64_t lse_offset = token_idx * num_heads + head_idx;
+  const uint64_t head_offset = lse_offset * head_size;
   const scalar_t* prefix_head_ptr = prefix_output + head_offset;
   const scalar_t* suffix_head_ptr = suffix_output + head_offset;
         scalar_t* output_head_ptr = output + head_offset;
 
   // [NUM_TOKENS, NUM_HEADS]
-  const uint32_t lse_offset = token_idx * num_heads + head_idx;
   float p_lse = prefix_lse[lse_offset];
   float s_lse = suffix_lse[lse_offset];
   p_lse = sycl::isinf(p_lse) ? -std::numeric_limits<float>::infinity() : p_lse;
@@ -160,12 +160,12 @@ void merge_attn_states_kernel(scalar_t *__restrict__ output,
 }
 
 template <typename scalar_t>
-void merge_attn_states_launcher(sycl::queue &q, int32_t repeat, uint32_t num_tokens,
+void merge_attn_states_launcher(sycl::queue &q, int32_t repeat, uint64_t num_tokens,
                                 uint32_t num_heads, uint32_t head_size) try {
-  uint64_t output_size = (uint64_t)num_tokens * num_heads * head_size;
-  uint64_t output_size_bytes = (uint64_t)num_tokens * num_heads * head_size * sizeof(scalar_t);
-  uint64_t lse_size = (uint64_t)num_tokens * num_heads;
-  uint64_t lse_size_bytes = (uint64_t)num_tokens * num_heads * sizeof(float);
+  uint64_t output_size = num_tokens * num_heads * head_size;
+  uint64_t output_size_bytes = num_tokens * num_heads * head_size * sizeof(scalar_t);
+  uint64_t lse_size = num_tokens * num_heads;
+  uint64_t lse_size_bytes = num_tokens * num_heads * sizeof(float);
 
   std::vector<scalar_t> h_prefix_output(output_size), h_suffix_output(output_size),
                         h_output(output_size), r_output(output_size);
@@ -185,7 +185,7 @@ void merge_attn_states_launcher(sycl::queue &q, int32_t repeat, uint32_t num_tok
 
   const int threads = 256;
   const float scale = 1.f / std::sqrt((float)head_size);
-  const unsigned long seed = 1234;
+  const uint64_t seed = 1234;
   int blocks = (output_size + threads - 1) / threads;
 
   q.submit([&](sycl::handler &cgh) {
@@ -248,7 +248,7 @@ void merge_attn_states_launcher(sycl::queue &q, int32_t repeat, uint32_t num_tok
   // Process one pack elements per thread. for float, the
   // pack_size is 4 for half/bf16, the pack_size is 8.
   const uint32_t threads_per_head = head_size / pack_size;
-  const uint32_t total_threads = num_tokens * num_heads * threads_per_head;
+  const uint64_t total_threads = num_tokens * num_heads * threads_per_head;
 
   constexpr uint32_t NUM_THREADS = 128;
   sycl::range<1> lws (NUM_THREADS);
@@ -315,10 +315,10 @@ catch (sycl::exception const &exc) {
 int main(int argc, char* argv[])
 {
   if (argc != 5) {
-    printf("Usage: %s <number of tokens> <number of heads> <head size> ", argv[0]);
+    printf("Usage: %s <number of tokens> <number of heads> <head size>\n", argv[0]);
     return 1;
   }
-  uint32_t num_tokens = atoi(argv[1]);
+  uint64_t num_tokens = atol(argv[1]);
   uint32_t num_heads = atoi(argv[2]);
   uint32_t head_size = atoi(argv[3]);
   int32_t repeat = atoi(argv[4]);
@@ -329,7 +329,7 @@ int main(int argc, char* argv[])
   sycl::queue q(sycl::cpu_selector_v, sycl::property::queue::in_order());
 #endif
 
-  printf("\n#tokens %d, #heads %d, head dimension %d\n", num_tokens, num_heads, head_size);
+  printf("\n#tokens %zu, #heads %d, head dimension %d\n", num_tokens, num_heads, head_size);
   printf("output dtype FP32: ");
   merge_attn_states_launcher<float>(q, repeat, num_tokens, num_heads, head_size);
   printf("output dtype FP16: ");
