@@ -62,17 +62,13 @@ void sosfilt(
   const int load_size = n_sections - 1 ;
   const int unload_size = n_samples - load_size ;
 
-  T temp;
-  T x_n;
-
   if ( ty < n_signals ) {
+    T temp, x_n;
+
     // Loading phase
     for ( int n = 0; n < load_size; n++ ) {
-      if ( tx == 0 ) {
-        x_n = x_in[ty * n_samples + n];
-      } else {
-        x_n = s_out[tx - 1];
-      }
+
+      x_n = (tx == 0) ? x_in[ty * n_samples + n] : s_out[tx - 1];
 
       // Use direct II transposed structure
       temp = s_sos[tx * sos_width + 0] * x_n + s_zi[tx * zi_width + 0];
@@ -81,6 +77,8 @@ void sosfilt(
         s_sos[tx * sos_width + 1] * x_n - s_sos[tx * sos_width + 4] * temp + s_zi[tx * zi_width + 1];
 
       s_zi[tx * zi_width + 1] = s_sos[tx * sos_width + 2] * x_n - s_sos[tx * sos_width + 5] * temp;
+
+      item.barrier(sycl::access::fence_space::local_space);
 
       s_out[tx] = temp;
 
@@ -89,11 +87,7 @@ void sosfilt(
 
     // Processing phase
     for ( int n = load_size; n < n_samples; n++ ) {
-      if ( tx == 0 ) {
-        x_n = x_in[ty * n_samples + n];
-      } else {
-        x_n = s_out[tx - 1];
-      }
+      x_n = (tx == 0) ? x_in[ty * n_samples + n] : s_out[tx - 1];
 
       // Use direct II transposed structure
       temp = s_sos[tx * sos_width + 0] * x_n + s_zi[tx * zi_width + 0];
@@ -102,6 +96,8 @@ void sosfilt(
         s_sos[tx * sos_width + 1] * x_n - s_sos[tx * sos_width + 4] * temp + s_zi[tx * zi_width + 1];
 
       s_zi[tx * zi_width + 1] = s_sos[tx * sos_width + 2] * x_n - s_sos[tx * sos_width + 5] * temp;
+
+      item.barrier(sycl::access::fence_space::local_space);
 
       if ( tx < load_size ) {
         s_out[tx] = temp;
@@ -125,13 +121,18 @@ void sosfilt(
           s_sos[tx * sos_width + 1] * x_n - s_sos[tx * sos_width + 4] * temp + s_zi[tx * zi_width + 1];
 
         s_zi[tx * zi_width + 1] = s_sos[tx * sos_width + 2] * x_n - s_sos[tx * sos_width + 5] * temp;
+      }
 
+      item.barrier(sycl::access::fence_space::local_space);
+
+      if ( tx > n ) {
         if ( tx < load_size ) {
           s_out[tx] = temp;
         } else {
           x_in[ty * n_samples + ( n + unload_size )] = temp;
         }
       }
+
       item.barrier(sycl::access::fence_space::local_space);
     }
   }

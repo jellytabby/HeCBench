@@ -67,22 +67,18 @@ __global__ void sosfilt(
     s_sos[tx * sos_width + i] = sos[tx * sos_width + i];
   }
 
-  __syncthreads( );
-
   const int load_size = n_sections - 1 ;
   const int unload_size = n_samples - load_size ;
 
-  T temp;
-  T x_n;
+  __syncthreads( );
 
   if ( ty < n_signals ) {
+    T temp, x_n;
+
     // Loading phase
     for ( int n = 0; n < load_size; n++ ) {
-      if ( tx == 0 ) {
-        x_n = x_in[ty * n_samples + n];
-      } else {
-        x_n = s_out[tx - 1];
-      }
+
+      x_n = (tx == 0) ? x_in[ty * n_samples + n] : s_out[tx - 1];
 
       // Use direct II transposed structure
       temp = s_sos[tx * sos_width + 0] * x_n + s_zi[tx * zi_width + 0];
@@ -91,6 +87,8 @@ __global__ void sosfilt(
         s_sos[tx * sos_width + 1] * x_n - s_sos[tx * sos_width + 4] * temp + s_zi[tx * zi_width + 1];
 
       s_zi[tx * zi_width + 1] = s_sos[tx * sos_width + 2] * x_n - s_sos[tx * sos_width + 5] * temp;
+
+      __syncthreads( );
 
       s_out[tx] = temp;
 
@@ -99,11 +97,7 @@ __global__ void sosfilt(
 
     // Processing phase
     for ( int n = load_size; n < n_samples; n++ ) {
-      if ( tx == 0 ) {
-        x_n = x_in[ty * n_samples + n];
-      } else {
-        x_n = s_out[tx - 1];
-      }
+      x_n = (tx == 0) ? x_in[ty * n_samples + n] : s_out[tx - 1];
 
       // Use direct II transposed structure
       temp = s_sos[tx * sos_width + 0] * x_n + s_zi[tx * zi_width + 0];
@@ -112,6 +106,8 @@ __global__ void sosfilt(
         s_sos[tx * sos_width + 1] * x_n - s_sos[tx * sos_width + 4] * temp + s_zi[tx * zi_width + 1];
 
       s_zi[tx * zi_width + 1] = s_sos[tx * sos_width + 2] * x_n - s_sos[tx * sos_width + 5] * temp;
+
+      __syncthreads( );
 
       if ( tx < load_size ) {
         s_out[tx] = temp;
@@ -135,7 +131,11 @@ __global__ void sosfilt(
           s_sos[tx * sos_width + 1] * x_n - s_sos[tx * sos_width + 4] * temp + s_zi[tx * zi_width + 1];
 
         s_zi[tx * zi_width + 1] = s_sos[tx * sos_width + 2] * x_n - s_sos[tx * sos_width + 5] * temp;
+      }
 
+      __syncthreads( );
+
+      if ( tx > n ) {
         if ( tx < load_size ) {
           s_out[tx] = temp;
         } else {
