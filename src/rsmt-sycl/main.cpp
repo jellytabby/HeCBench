@@ -33,7 +33,6 @@ void buildMST(const ID num,
   auto sg = item.get_sub_group();
 
   for (ID cnt = 0; cnt < num - 1; cnt++) {
-    sycl::group_barrier(sg);
     if (lane == 0) mindj[warp] = INT_MAX;
 
     // update distances
@@ -61,6 +60,10 @@ void buildMST(const ID num,
     const ID j = mindj[warp] % (MaxPins * 2);
     src = destin[warp][j];
     numItems--;
+
+    // https://github.com/ORNL/HeCBench/issues/265
+    sycl::group_barrier(sg);
+
     if (lane == 0) {
       edges[cnt].src = source[warp][j];
       edges[cnt].dst = src;
@@ -206,6 +209,9 @@ bool insertSteinerPoints(ID& num,
     }
     num += sycl::popcount(bal);
   }
+
+  // https://github.com/ORNL/HeCBench/issues/265
+  sycl::group_barrier(sg);
 
   return sycl::any_of_group(sg, updated);
 }

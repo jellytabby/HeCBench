@@ -8,7 +8,7 @@ static __device__ int wlsize = 0;
 
 template <int WarpsPerBlock, int PinLimit>
 static __device__
-void buildMST(const ID num, 
+void buildMST(const ID num,
               const ctype* const __restrict__ x,
               const ctype* const __restrict__ y,
               edge* const __restrict__ edges,
@@ -29,11 +29,10 @@ void buildMST(const ID num,
   // Prim's MST algorithm
   ID src = 0;
   for (ID cnt = 0; cnt < num - 1; cnt++) {
-    __syncwarp();
     if (lane == 0) mindj[warp] = INT_MAX;
+    __syncwarp();
 
     // update distances
-    __syncwarp();
     for (ID j = lane; j < numItems; j += WS) {
       const ID dst = destin[warp][j];
       const ctype dnew = abs(x[src] - x[dst]) + abs(y[src] - y[dst]);
@@ -52,6 +51,12 @@ void buildMST(const ID num,
     const ID j = mindj[warp] % (MaxPins * 2);
     src = destin[warp][j];
     numItems--;
+
+    // https://github.com/ORNL/HeCBench/issues/265
+    // with independent thread scheduling a fast lane 0 could overwrite the
+    // destin[warp][j] before slower lanes finished reading it in "src = destin[warp][j]".
+    __syncwarp();
+
     if (lane == 0) {
       edges[cnt].src = source[warp][j];
       edges[cnt].dst = src;
@@ -159,6 +164,13 @@ bool insertSteinerPoints(ID& num,
     }
     num += __popc(bal);
   }
+
+  // https://github.com/ORNL/HeCBench/issues/265
+  // In the insertSteinerPoints kernel, the last per-lane divergent read of dist[e2] (main.cu:~134)
+  // could still be in flight when the next buildMST
+  // call (in the do { buildMST(); } while (insertSteinerPoints()); loop)
+  // began clobbering dist[i] = INT_MAX (main.cu:~26).
+  __syncwarp();
 
   return __any_sync(0xffffffff, updated);
 }
@@ -440,7 +452,7 @@ int main(int argc, char* argv[])
 
   // print results
   long total_len = 0, total_pin = 0;
-  
+
   for (int i = 0; i < numnets; i++) {
     // body of treeLength function illustrates how to read solution
     const ctype len = treeLength(idxout[i + 1] - idxout[i],
