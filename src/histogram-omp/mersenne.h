@@ -46,8 +46,8 @@
 namespace mersenne {
 
 /* Period parameters */
-const unsigned int N          = 624;
-const unsigned int M          = 397;
+const int N = 624;
+const int M = 397;
 const unsigned int MATRIX_A   = 0x9908b0df; /* constant vector a */
 const unsigned int UPPER_MASK = 0x80000000; /* most significant w-r bits */
 const unsigned int LOWER_MASK = 0x7fffffff; /* least significant r bits */

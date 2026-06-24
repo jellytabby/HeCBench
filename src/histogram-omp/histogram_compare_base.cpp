@@ -482,7 +482,7 @@ void TestMethods(
     {
         std::sort(timings.begin(), timings.end(), less_than_value());
         printf("Timings (us):\n");
-        for (int i = 0; i < timings.size(); i++)
+        for (size_t i = 0; i < timings.size(); i++)
         {
             double bandwidth = height * width * sizeof(PixelType) / timings[i].second / 1000;
             printf("\t %.3f %s (%.3f GB/s, %.3f%% peak)\n", timings[i].second, timings[i].first.c_str(), bandwidth, bandwidth / bandwidth_GBs * 100);
@@ -650,7 +650,7 @@ int main(int argc, char **argv)
         file_tests.push_back("austin");
         file_tests.push_back("cityscape");
 
-        for (int i = 0; i < file_tests.size(); ++i)
+        for (size_t i = 0; i < file_tests.size(); ++i)
         {
             printf("%s, ", file_tests[i].c_str());
             std::string filename = std::string("histogram/benchmark/") + file_tests[i] + ".tga";
