@@ -42,10 +42,10 @@ float noiseAt(float x, float y, int seed, const int *_hash,
   const int ix0 = ix & 255, iy0 = iy & 255;
   const int ix1 = (ix0 + 1) & 255, iy1 = (iy0 + 1) & 255;
   const int h0 = _hash[ix0], h1 = _hash[ix1];
-  const int iTL = (_hash[h0 + iy0] + seed) % N_GRADIENTS,
-            iTR = (_hash[h1 + iy0] + seed) % N_GRADIENTS,
-            iBL = (_hash[h0 + iy1] + seed) % N_GRADIENTS,
-            iBR = (_hash[h1 + iy1] + seed) % N_GRADIENTS;
+  const int iTL = (_hash[(h0 + iy0) & 255] + seed) % N_GRADIENTS,
+            iTR = (_hash[(h1 + iy0) & 255] + seed) % N_GRADIENTS,
+            iBL = (_hash[(h0 + iy1) & 255] + seed) % N_GRADIENTS,
+            iBR = (_hash[(h1 + iy1) & 255] + seed) % N_GRADIENTS;
   const sycl::float2 gTopLeft = sycl::float2(gradientX[iTL], gradientY[iTL]);
   const sycl::float2 gTopRight = sycl::float2(gradientX[iTR], gradientY[iTR]);
   const sycl::float2 gBotLeft = sycl::float2(gradientX[iBL], gradientY[iBL]);
