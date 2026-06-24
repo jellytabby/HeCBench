@@ -56,7 +56,10 @@ $(program): $(obj)
 clean:
 	rm -rf $(program) $(obj)
 
-run: $(program)
+data/input_14_1_128.bin:
+	cd ../resnet-kernels-cuda && mkdir -p data && python3 data_generator.py
+
+run: $(program) data/input_14_1_128.bin
 	$(LAUNCHER) ./$(program) 0 100
 	$(LAUNCHER) ./$(program) 1 100
 	$(LAUNCHER) ./$(program) 2 100
