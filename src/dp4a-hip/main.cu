@@ -63,8 +63,35 @@ void dot_product(const T *__restrict__ a,
 
 template <typename T>
 __device__ __forceinline__
+T __dp4a_scalar(const T a, const T b, T c) {
+  if constexpr (std::is_same_v<T, unsigned>) {
+    const uint8_t *a8 = (const uint8_t *)&a;
+    const uint8_t *b8 = (const uint8_t *)&b;
+    c += a8[0]*b8[0] + a8[1]*b8[1] + a8[2]*b8[2] + a8[3]*b8[3];
+  } else {
+    const int8_t *a8 = (const int8_t *)&a;
+    const int8_t *b8 = (const int8_t *)&b;
+    c += a8[0]*b8[0] + a8[1]*b8[1] + a8[2]*b8[2] + a8[3]*b8[3];
+  }
+  return c;
+}
+
+template <typename T>
+__device__ __forceinline__
 T __dp4a(const T a, const T b, T c) {
-#if defined(CDNA) || defined(RDNA2) || defined(__gfx906__)
+#if defined(__has_builtin) && __has_builtin(__builtin_amdgcn_is_invocable)
+  if constexpr (std::is_same_v<T, unsigned>) {
+    if (__builtin_amdgcn_is_invocable(__builtin_amdgcn_udot4))
+      c = __builtin_amdgcn_udot4(a, b, c, false);
+    else
+      c = __dp4a_scalar(a, b, c);
+  } else {
+    if (__builtin_amdgcn_is_invocable(__builtin_amdgcn_sdot4))
+      c = __builtin_amdgcn_sdot4(a, b, c, false);
+    else
+      c = __dp4a_scalar(a, b, c);
+  }
+#elif defined(CDNA) || defined(RDNA2) || defined(__gfx906__)
   if constexpr (std::is_same_v<T, unsigned>)
     c = __builtin_amdgcn_udot4(a, b, c, false);
   else
