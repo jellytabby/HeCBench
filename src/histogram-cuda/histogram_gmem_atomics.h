@@ -85,8 +85,7 @@
         unsigned int *out)
     {
         int i = blockIdx.x * blockDim.x + threadIdx.x;
-        if (i > ACTIVE_CHANNELS * NUM_BINS)
-            return; // out of range
+        if (i >= ACTIVE_CHANNELS * NUM_BINS) return;
 
         unsigned int total = 0;
         for (int j = 0; j < n; j++)
@@ -126,7 +125,7 @@ double run_gmem_atomics(
     cudaMalloc(&d_part_hist, total_blocks * NUM_PARTS * sizeof(unsigned int));
 
     dim3 block2(128);
-    dim3 grid2((3 * NUM_BINS + block.x - 1) / block.x);
+    dim3 grid2((ACTIVE_CHANNELS * NUM_BINS + block2.x - 1) / block2.x);
 
     GpuTimer gpu_timer;
     gpu_timer.Start();
