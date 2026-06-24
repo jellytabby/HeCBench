@@ -55,14 +55,13 @@ $(program): $(obj)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -rf $(program) $(obj)
+	rm -rf $(program) $(obj) data
 
-data_gen: data_generator.py
-	rm -rf data
-	mkdir data
+data/input_14_1_128.bin:
+	mkdir -p data
 	python3 data_generator.py
 
-run: $(program)
+run: $(program) data/input_14_1_128.bin
 	$(LAUNCHER) ./$(program) 0 100
 	$(LAUNCHER) ./$(program) 1 100
 	$(LAUNCHER) ./$(program) 2 100

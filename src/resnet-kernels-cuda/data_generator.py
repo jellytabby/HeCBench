@@ -1,20 +1,5 @@
-from __future__ import print_function
-import sys
-import numpy as np
-import re
-import time
-import difflib
-import array
-import requests
-import os
-import shutil
-import scipy.spatial.distance as spd
 import numpy as np
 from numpy.random import *
-from random import randint
-import random
-import matplotlib.pyplot as plt
-from scipy import misc
 
 
 def bias_generator(output_channel = 128):
