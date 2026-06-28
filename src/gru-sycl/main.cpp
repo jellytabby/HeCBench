@@ -31,9 +31,13 @@ void gru_cell_forward(
   index_type hsz,
   index_type totalElements)
 {
-  index_type linearIndex = item.get_global_id(0);
-  if (linearIndex < totalElements) {
-    index_type offset = (linearIndex/hsz)*3*hsz+linearIndex%hsz;
+  size_t linearIdx = item.get_global_id(0);
+
+  if (linearIdx < totalElements) {
+
+    index_type batch_idx = linearIdx / hsz;
+    index_type hidden_idx = linearIdx % hsz;
+    index_type offset = batch_idx * 3 * hsz + hidden_idx;
 
     scalar_t ir = DEVICE_LINEAR_GET(Input,  offset+0*hsz);
     scalar_t ii = DEVICE_LINEAR_GET(Input,  offset+1*hsz);
@@ -42,20 +46,20 @@ void gru_cell_forward(
     scalar_t hi = DEVICE_LINEAR_GET(Hidden, offset+1*hsz);
     scalar_t hn = DEVICE_LINEAR_GET(Hidden, offset+2*hsz);
 
-    scalar_t hx = DEVICE_LINEAR_GET(_hx, linearIndex);
-    scalar_t* hy = &DEVICE_LINEAR_GET(_hy, linearIndex);
+    scalar_t hx = DEVICE_LINEAR_GET(_hx, linearIdx);
+    scalar_t* hy = &DEVICE_LINEAR_GET(_hy, linearIdx);
 
     scalar_t b1r, b1i, b1n, b2r, b2i, b2n;
 
-    b1r = DEVICE_BIAS_GET(Bias1, linearIndex%hsz+0*hsz);
-    b1i = DEVICE_BIAS_GET(Bias1, linearIndex%hsz+1*hsz);
-    b1n = DEVICE_BIAS_GET(Bias1, linearIndex%hsz+2*hsz);
+    b1r = DEVICE_BIAS_GET(Bias1, hidden_idx + 0*hsz);
+    b1i = DEVICE_BIAS_GET(Bias1, hidden_idx + 1*hsz);
+    b1n = DEVICE_BIAS_GET(Bias1, hidden_idx + 2*hsz);
 
-    b2r = DEVICE_BIAS_GET(Bias2, linearIndex%hsz+0*hsz);
-    b2i = DEVICE_BIAS_GET(Bias2, linearIndex%hsz+1*hsz);
-    b2n = DEVICE_BIAS_GET(Bias2, linearIndex%hsz+2*hsz);
+    b2r = DEVICE_BIAS_GET(Bias2, hidden_idx + 0*hsz);
+    b2i = DEVICE_BIAS_GET(Bias2, hidden_idx + 1*hsz);
+    b2n = DEVICE_BIAS_GET(Bias2, hidden_idx + 2*hsz);
 
-    offset = (linearIndex/hsz)*5*hsz+linearIndex%hsz;
+    offset = batch_idx * 5 * hsz + hidden_idx;
 
     accscalar_t rg, ig, ng;
 
@@ -91,19 +95,21 @@ int main(int argc, char* argv[])
   const int hsz = atoi(argv[2]);
   const int repeat = atoi(argv[3]);
 
-  int input_size = 3 * vsz * hsz;
+  const size_t total_elements = (size_t) vsz * hsz;
+
+  const size_t input_size = 3 * total_elements;
   size_t input_size_bytes = input_size * sizeof(sycl::half);
 
-  int hidden_size = 3 * vsz * hsz;
+  const size_t hidden_size = 3 * total_elements;
   size_t hidden_size_bytes = hidden_size * sizeof(sycl::half);
 
   int bias_size = 3 * hsz;
   size_t bias_size_bytes = bias_size * sizeof(sycl::half);
 
-  int store_size = 5 * vsz * hsz;
+  const size_t store_size = 5 * total_elements;
   size_t store_size_bytes = store_size * sizeof(sycl::half);
 
-  int state_size = vsz;
+  const size_t state_size = total_elements;
   size_t state_size_bytes = state_size * sizeof(sycl::half);
 
   sycl::half *h_input, *h_hidden, *h_input_bias, *h_hidden_bias;
@@ -122,11 +128,11 @@ int main(int argc, char* argv[])
   std::default_random_engine g (123);
   std::uniform_real_distribution<float> distr (-2.f, 2.f);
 
-  for (int i = 0; i < input_size; i++) {
+  for (size_t i = 0; i < input_size; i++) {
     h_input[i] = distr(g);
   }
 
-  for (int i = 0; i < hidden_size; i++) {
+  for (size_t i = 0; i < hidden_size; i++) {
     h_hidden[i] = distr(g);
   }
 
@@ -135,7 +141,7 @@ int main(int argc, char* argv[])
     h_hidden_bias[i] = distr(g);
   }
 
-  for (int i = 0; i < state_size; i++) {
+  for (size_t i = 0; i < state_size; i++) {
     h_hx[i] = distr(g);
   }
 
@@ -167,7 +173,7 @@ int main(int argc, char* argv[])
 
   d_store = sycl::malloc_device<sycl::half>(store_size, q);
 
-  sycl::range<1> gws ((vsz + 255) / 256 * 256);
+  sycl::range<1> gws ((total_elements + 255) / 256 * 256);
   sycl::range<1> lws (256);
 
   q.wait();
@@ -179,7 +185,7 @@ int main(int argc, char* argv[])
         sycl::nd_range<1>(gws, lws), [=] (sycl::nd_item<1> item) {
         gru_cell_forward<sycl::half, float, int> (
           item, d_input, d_hidden, d_input_bias, d_hidden_bias,
-          d_hx, d_hy, d_store, hsz, vsz);
+          d_hx, d_hy, d_store, hsz, total_elements);
       });
     });
   }
@@ -196,7 +202,7 @@ int main(int argc, char* argv[])
 
   reference<sycl::half, float, int>(
     h_input, h_hidden, h_input_bias, h_hidden_bias,
-      h_hx, h_hy_ref, h_store_ref, hsz, vsz);
+      h_hx, h_hy_ref, h_store_ref, hsz, total_elements);
 
   bool ok = true;
   for (int i = 0; i < state_size; i++) {
