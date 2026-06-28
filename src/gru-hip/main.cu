@@ -101,7 +101,7 @@ int main(int argc, char* argv[])
   const int bias_size = 3 * hsz;
   const size_t bias_size_bytes = bias_size * sizeof(half);
 
-  const int store_size = 5 * vsz * hsz;
+  const int store_size = 5 * vsz;
   const size_t store_size_bytes = store_size * sizeof(half);
 
   const int state_size = vsz;
