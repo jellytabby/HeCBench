@@ -1,3 +1,4 @@
+ROCM_PATH ?= /opt/rocm
 #===============================================================================
 # User Options
 #===============================================================================
@@ -27,7 +28,7 @@ obj = $(source:.cu=.o)
 #--hipstdpar-path=/opt/rocm/include/thrust/system/hip/hipstdpar
 
 CFLAGS := $(EXTRA_CFLAGS) -std=c++17 -Wall \
-          -I/opt/rocm/include/hipblas \
+          -I$(ROCM_PATH)/include/hipblas \
           --hipstdpar \
           --offload-arch=$(HIP_ARCH)
 

@@ -1,3 +1,4 @@
+ROCM_PATH ?= /opt/rocm
 #===============================================================================
 # User Options
 #===============================================================================
@@ -23,7 +24,7 @@ obj = main.o device.o
 #===============================================================================
 
 # Standard Flags
-CFLAGS := $(EXTRA_CFLAGS) -std=c++17 -Wall -I../pcc-cuda -I /opt/rocm/include/hipblas
+CFLAGS := $(EXTRA_CFLAGS) -std=c++17 -Wall -I../pcc-cuda -I $(ROCM_PATH)/include/hipblas
 
 # Linker Flags
 LDFLAGS = -lhipblas
