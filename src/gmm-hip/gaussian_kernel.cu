@@ -144,9 +144,9 @@ __device__ void compute_pi(clusters_t* clusters, int num_clusters) {
 
   for(int c = threadIdx.x; c < num_clusters; c += blockDim.x) {
     if(clusters->N[c] < 0.5f) {
-      clusters->pi[threadIdx.x] = 1e-10;
+      clusters->pi[c] = 1e-10;
     } else {
-      clusters->pi[threadIdx.x] = clusters->N[c] / sum;
+      clusters->pi[c] = clusters->N[c] / sum;
     }
   }
 
@@ -278,9 +278,9 @@ constants_kernel(clusters_t* clusters, int num_clusters, int num_dimensions) {
 
     for(int i = tid; i < num_clusters; i += num_threads) {
       if(clusters->N[i] < 0.5f) {
-        clusters->pi[tid] = 1e-10;
+        clusters->pi[i] = 1e-10;
       } else {
-        clusters->pi[tid] = clusters->N[i] / sum;
+        clusters->pi[i] = clusters->N[i] / sum;
       }
     }
   }
