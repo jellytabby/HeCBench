@@ -382,10 +382,10 @@ clusters_t* cluster(int original_num_clusters, int desired_num_clusters,
 
   // seed_clusters sets initial pi values, 
   // finds the means / covariances and copies it to all the clusters
-  hipLaunchKernelGGL(seed_clusters_kernel, dim3(1), dim3(NUM_THREADS_MSTEP ), 0, 0,  d_fcs_data_by_event, d_clusters, num_dimensions, original_num_clusters, num_events);
+  seed_clusters_kernel<<< 1, NUM_THREADS_MSTEP >>>( d_fcs_data_by_event, d_clusters, num_dimensions, original_num_clusters, num_events);
 
   // Computes the R matrix inverses, and the gaussian constant
-  hipLaunchKernelGGL(constants_kernel, dim3(original_num_clusters), dim3(NUM_THREADS_MSTEP), 0, 0, d_clusters,original_num_clusters,num_dimensions);
+  constants_kernel<<<original_num_clusters, NUM_THREADS_MSTEP>>>(d_clusters,original_num_clusters,num_dimensions);
 
   // copy clusters from the device
   copyClusterFromDevice(&clusters, &temp_clusters, d_clusters, original_num_clusters, num_dimensions);
@@ -448,8 +448,8 @@ clusters_t* cluster(int original_num_clusters, int desired_num_clusters,
     // Calculates a cluster membership probability
     // for each event and each cluster.
     DEBUG("Invoking E-step kernels.");
-    hipLaunchKernelGGL(estep1, dim3(num_clusters, NUM_BLOCKS), dim3(NUM_THREADS_ESTEP), 0, 0, d_fcs_data_by_dimension,d_clusters,num_dimensions,num_events);
-    hipLaunchKernelGGL(estep2, dim3(NUM_BLOCKS), dim3(NUM_THREADS_ESTEP), 0, 0, d_fcs_data_by_dimension,d_clusters,num_dimensions,num_clusters,num_events,d_likelihoods);
+    estep1<<<dim3(num_clusters,NUM_BLOCKS), NUM_THREADS_ESTEP>>>(d_fcs_data_by_dimension,d_clusters,num_dimensions,num_events);
+    estep2<<<NUM_BLOCKS, NUM_THREADS_ESTEP>>>(d_fcs_data_by_dimension,d_clusters,num_dimensions,num_clusters,num_events,d_likelihoods);
     regroup_iterations++;
 
     // Copy the likelihood totals from each block, sum them up to get a total
@@ -473,13 +473,13 @@ clusters_t* cluster(int original_num_clusters, int desired_num_clusters,
       DEBUG("Invoking reestimate_parameters (M-step) kernel.");
 
       // This kernel computes a new N, pi isn't updated until compute_constants though
-      hipLaunchKernelGGL(mstep_N, dim3(num_clusters), dim3(NUM_THREADS_MSTEP), 0, 0, d_clusters,num_dimensions,num_clusters,num_events);
+      mstep_N<<<num_clusters, NUM_THREADS_MSTEP>>>(d_clusters,num_dimensions,num_clusters,num_events);
 
       CUDA_SAFE_CALL(hipMemcpy(clusters.N,temp_clusters.N,sizeof(float)*num_clusters,hipMemcpyDeviceToHost));
 
       dim3 gridDim1(num_clusters, num_dimensions);
       dim3 blockDim1(NUM_THREADS_MSTEP, 1);
-      hipLaunchKernelGGL(mstep_means, dim3(gridDim1), dim3(blockDim1), 0, 0, d_fcs_data_by_dimension,d_clusters,
+      mstep_means<<<gridDim1, blockDim1>>>(d_fcs_data_by_dimension,d_clusters,
           num_dimensions,num_clusters,num_events);
       CUDA_SAFE_CALL(hipMemcpy(clusters.means,temp_clusters.means,
             sizeof(float)*num_clusters*num_dimensions,hipMemcpyDeviceToHost));
@@ -503,7 +503,7 @@ clusters_t* cluster(int original_num_clusters, int desired_num_clusters,
       // Covariance is symmetric, so we only need to compute N*(N+1)/2 matrix elements per cluster
       dim3 gridDim2((num_clusters+NUM_CLUSTERS_PER_BLOCK-1)/NUM_CLUSTERS_PER_BLOCK,
           num_dimensions*(num_dimensions+1)/2);
-      hipLaunchKernelGGL(mstep_covariance2, dim3(gridDim2), dim3(blockDim1), 0, 0, d_fcs_data_by_dimension,d_clusters,
+      mstep_covariance2<<<gridDim2, blockDim1>>>(d_fcs_data_by_dimension,d_clusters,
           num_dimensions,num_clusters,num_events);
       CUDA_SAFE_CALL(hipMemcpy(clusters.R,temp_clusters.R,
             sizeof(float)*num_clusters*num_dimensions*num_dimensions,hipMemcpyDeviceToHost));
@@ -544,7 +544,7 @@ clusters_t* cluster(int original_num_clusters, int desired_num_clusters,
       DEBUG("Invoking constants kernel.");
 
       // Inverts the R matrices, computes the constant, normalizes cluster probabilities
-      hipLaunchKernelGGL(constants_kernel, dim3(num_clusters), dim3(NUM_THREADS_MSTEP), 0, 0, d_clusters,num_clusters,num_dimensions);
+      constants_kernel<<<num_clusters, NUM_THREADS_MSTEP>>>(d_clusters,num_clusters,num_dimensions);
       CUDA_SAFE_CALL(hipMemcpy(clusters.constant, temp_clusters.constant, 
             sizeof(float)*num_clusters,hipMemcpyDeviceToHost));
       for(int temp_c=0; temp_c < num_clusters; temp_c++)
@@ -552,8 +552,8 @@ clusters_t* cluster(int original_num_clusters, int desired_num_clusters,
 
       DEBUG("Invoking regroup (E-step) kernel with %d blocks.\n",NUM_BLOCKS);
       // Compute new cluster membership probabilities for all the events
-      hipLaunchKernelGGL(estep1, dim3(num_clusters, NUM_BLOCKS), dim3(NUM_THREADS_ESTEP), 0, 0, d_fcs_data_by_dimension,d_clusters,num_dimensions,num_events);
-      hipLaunchKernelGGL(estep2, dim3(NUM_BLOCKS), dim3(NUM_THREADS_ESTEP), 0, 0, d_fcs_data_by_dimension,d_clusters,num_dimensions,num_clusters,num_events,d_likelihoods);
+      estep1<<<dim3(num_clusters,NUM_BLOCKS), NUM_THREADS_ESTEP>>>(d_fcs_data_by_dimension,d_clusters,num_dimensions,num_events);
+      estep2<<<NUM_BLOCKS, NUM_THREADS_ESTEP>>>(d_fcs_data_by_dimension,d_clusters,num_dimensions,num_clusters,num_events,d_likelihoods);
       regroup_iterations++;
 
       // check if kernel execution generated an error

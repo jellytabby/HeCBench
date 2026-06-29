@@ -169,8 +169,6 @@ void constants_kernel(
 #pragma omp barrier
 
   if(bid == 0) {
-    // compute_pi(clusters,num_clusters);
-
     if(tid == 0) {
       sum[0] = 0.0;
       for(int i=0; i<num_clusters; i++) {
@@ -182,9 +180,9 @@ void constants_kernel(
 
     for(int i = tid; i < num_clusters; i += num_threads) {
       if(clusters_N[i] < 0.5f) {
-        clusters_pi[tid] = 1e-10;
+        clusters_pi[i] = 1e-10;
       } else {
-        clusters_pi[tid] = clusters_N[i] / sum[0];
+        clusters_pi[i] = clusters_N[i] / sum[0];
       }
     }
   }

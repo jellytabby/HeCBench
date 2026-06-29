@@ -65,11 +65,11 @@ float* readCSV(char* f, int* ndims, int* nevents) {
         line1 = lines[0];
         string line2 (line1.begin(), line1.end());
 
-        temp = strtok((char*)line1.c_str(), ",");
+        temp = strtok((char*)line1.c_str(), ", \t");
 
         while(temp != NULL) {
             num_dims++;
-            temp = strtok(NULL, ",");
+            temp = strtok(NULL, ", \t");
         }
 
         lines.erase(lines.begin()); // Remove first line, assumed to be header
@@ -88,7 +88,7 @@ float* readCSV(char* f, int* ndims, int* nevents) {
         }
 
         for (int i = 0; i < num_events; i++) {
-            temp = strtok((char*)lines[i].c_str(), ",");
+            temp = strtok((char*)lines[i].c_str(), ", \t");
 
             for (int j = 0; j < num_dims; j++) {
                 if(temp == NULL) {
@@ -96,7 +96,7 @@ float* readCSV(char* f, int* ndims, int* nevents) {
                     return NULL;
                 }
                 data[i * num_dims + j] = atof(temp);
-                temp = strtok(NULL, ",");
+                temp = strtok(NULL, ", \t");
             }
         }
 
@@ -107,6 +107,4 @@ float* readCSV(char* f, int* ndims, int* nevents) {
     } else {
         return NULL;
     }
-    
-    
 }

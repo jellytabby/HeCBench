@@ -1,4 +1,3 @@
-#include "hip/hip_runtime.h"
 /*
  * CUDA Kernels for Expectation Maximization with Gaussian Mixture Models
  *
@@ -130,30 +129,6 @@ __device__ void invert(float* data, int actualsize, float* log_determinant)  {
 }
 
 
-__device__ void compute_pi(clusters_t* clusters, int num_clusters) {
-  __shared__ float sum;
-
-  if(threadIdx.x == 0) {
-    sum = 0.0;
-    for(int i=0; i<num_clusters; i++) {
-      sum += clusters->N[i];
-    }
-  }
-
-  __syncthreads();
-
-  for(int c = threadIdx.x; c < num_clusters; c += blockDim.x) {
-    if(clusters->N[c] < 0.5f) {
-      clusters->pi[c] = 1e-10;
-    } else {
-      clusters->pi[c] = clusters->N[c] / sum;
-    }
-  }
-
-  __syncthreads();
-}
-
-
 __device__ void compute_constants(clusters_t* clusters, int num_clusters, int num_dimensions) {
   int tid = threadIdx.x;
   int num_threads = blockDim.x;
@@ -265,7 +240,6 @@ constants_kernel(clusters_t* clusters, int num_clusters, int num_dimensions) {
   __syncthreads();
 
   if(bid == 0) {
-    // compute_pi(clusters,num_clusters);
 
     if(tid == 0) {
       sum = 0.0;

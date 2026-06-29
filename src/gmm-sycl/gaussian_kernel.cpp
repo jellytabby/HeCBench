@@ -179,9 +179,9 @@ void constants_kernel(
 
     for(int i = tid; i < num_clusters; i += num_threads) {
       if(clusters_N[i] < 0.5f) {
-        clusters_pi[tid] = 1e-10;
+        clusters_pi[i] = 1e-10;
       } else {
-        clusters_pi[tid] = clusters_N[i] / sum;
+        clusters_pi[i] = clusters_N[i] / sum;
       }
     }
   }
