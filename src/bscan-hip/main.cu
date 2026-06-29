@@ -23,21 +23,23 @@ __device__ __inline__ int warp_scan(int val, volatile int *s_data)
   s_data[idx] = t += s_data[idx - 4];
   s_data[idx] = t += s_data[idx - 8];
   s_data[idx] = t += s_data[idx -16];
+  if (warpSize > 32)
+    s_data[idx] = t += s_data[idx -32];
   return s_data[idx-1];
 }
 
-__device__ __inline__ unsigned int lanemask_lt()
+__device__ __inline__ unsigned long long lanemask_lt()
 {
   const unsigned int lane = threadIdx.x & (warpSize-1);
-  return (1 << (lane)) - 1;
+  return (1ULL << lane) - 1;
 }
 
 // warp scan optimized for binary
 __device__ __inline__ unsigned int binary_warp_scan(bool p)
 {
-  const unsigned int mask = lanemask_lt();
-  unsigned int b = __ballot(p);
-  return __popc(b & mask);
+  const unsigned long long mask = lanemask_lt();
+  unsigned long long b = __ballot(p);
+  return __popcll(b & mask);
 }
 
 // positive numbers
@@ -48,8 +50,7 @@ bool valid(int x) {
 
 __device__ __inline__ int block_binary_prefix_sums(int x)
 {
-  // 2 x warpIdx's upper bound (1024/32)
-  __shared__ int sdata[64];
+  __shared__ int sdata[128];
 
   bool predicate = valid(x);
 
@@ -95,8 +96,13 @@ __global__ void binary_scan(
 }
 
 template <int N>
-void bscan (const int repeat) 
+void bscan (const int repeat, int warp_size)
 {
+  if (N < warp_size) {
+    printf("Block size = %d, skipped (< warpSize %d)\n", N, warp_size);
+    return;
+  }
+
   int h_in[N];
   int h_out[N];
   int ref_out[N];
@@ -163,14 +169,17 @@ int main(int argc, char* argv[])
     return 1;
   }
   const int repeat = atoi(argv[1]);
-    
+
+  int warp_size = 32;
+  hipDeviceGetAttribute(&warp_size, hipDeviceAttributeWarpSize, 0);
+
   // scan over N elements (N = [32, 1024])
-  bscan<32>(repeat);
-  bscan<64>(repeat);
-  bscan<128>(repeat);
-  bscan<256>(repeat);
-  bscan<512>(repeat);
-  bscan<1024>(repeat);
+  bscan<32>(repeat, warp_size);
+  bscan<64>(repeat, warp_size);
+  bscan<128>(repeat, warp_size);
+  bscan<256>(repeat, warp_size);
+  bscan<512>(repeat, warp_size);
+  bscan<1024>(repeat, warp_size);
 
   return 0; 
 }
