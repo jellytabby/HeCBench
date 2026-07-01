@@ -1,3 +1,4 @@
+ROCM_PATH ?= /opt/rocm
 #===============================================================================
 # User Options
 #===============================================================================
@@ -24,7 +25,7 @@ obj = main.o kernels.o utils.o
 
 # Standard Flags
 CFLAGS := $(EXTRA_CFLAGS) -std=c++17 -Wall -I../spmv-cuda \
-          -I/opt/rocm/include/hipsparse
+          -I$(ROCM_PATH)/include/hipsparse
 
 # Linker Flags
 LDFLAGS = -lhipsparse

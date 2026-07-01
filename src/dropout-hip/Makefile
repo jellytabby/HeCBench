@@ -1,3 +1,4 @@
+ROCM_PATH ?= /opt/rocm
 #===============================================================================
 # User Options
 #===============================================================================
@@ -23,8 +24,8 @@ obj = $(source:.cu=.o)
 #===============================================================================
 
 # Standard Flags
-CFLAGS := $(EXTRA_CFLAGS) -std=c++17 -Wall -I/opt/rocm/hiprand/include/ \
-                           -I/opt/rocm/rocrand/include/
+CFLAGS := $(EXTRA_CFLAGS) -std=c++17 -Wall -I$(ROCM_PATH)/hiprand/include/ \
+                           -I$(ROCM_PATH)/rocrand/include/
 
 # Linker Flags
 LDFLAGS = 

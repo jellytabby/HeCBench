@@ -1,3 +1,4 @@
+ROCM_PATH ?= /opt/rocm
 #===============================================================================
 # User Options
 #===============================================================================
@@ -24,7 +25,7 @@ obj = $(source:.cu=.o)
 
 # Standard Flags
 CFLAGS := $(EXTRA_CFLAGS) -fopenmp -std=c++17 -Wall -I../spaxpby-cuda \
-          -I/opt/rocm/include
+          -I$(ROCM_PATH)/include
 
 # Linker Flags
 LDFLAGS = -lhipsparse

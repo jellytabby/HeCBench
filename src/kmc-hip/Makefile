@@ -1,3 +1,4 @@
+ROCM_PATH ?= /opt/rocm
 #===============================================================================
 # User Options
 #===============================================================================
@@ -22,10 +23,10 @@ obj = main.o svm.o
 
 # Standard Flags
 CFLAGS := $(EXTRA_CFLAGS) -std=c++17 -Wall -Wno-unused-result -I../kmc-cuda \
-          -I/opt/rocm/include/hipblas
+          -I$(ROCM_PATH)/include/hipblas
 
 # Linker Flags
-LDFLAGS = -L/opt/rocm/hipblas/lib/ -lhipblas 
+LDFLAGS = -L$(ROCM_PATH)/hipblas/lib/ -lhipblas 
 
 # Debug Flags
 ifeq ($(DEBUG),yes)
