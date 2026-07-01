@@ -3,7 +3,7 @@
 
 #include <sycl/sycl.hpp>
 
-using uchar3 = sycl::uchar3;
+using uchar3 = sycl::marray<unsigned char, 3>;
 using float4 = sycl::float4;
 
 struct Params {
