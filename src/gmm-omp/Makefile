@@ -53,7 +53,8 @@ endif
 $(program): $(obj) Makefile
 	$(CC) $(CFLAGS) $(obj) -o $@ $(LDFLAGS)
 
-%.o: %.cpp cluster.cpp readData.cpp gaussian_kernel.cpp gaussian.h  Makefile
+%.o: %.cpp cluster.cpp readData.cpp gaussian_kernel.cpp gaussian.h \
+           ../gmm-cuda/cpu_reference.h ../gmm-cuda/verification.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:

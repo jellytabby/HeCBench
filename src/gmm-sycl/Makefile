@@ -71,7 +71,7 @@ endif
 $(program): $(obj)
 	$(CC) $(CFLAGS) $(obj) -o $@ $(LDFLAGS)
 
-%.o: %.cpp gaussian.h gaussian_kernel.cpp cluster.cpp readData.cpp
+%.o: %.cpp gaussian.h gaussian_kernel.cpp cluster.cpp readData.cpp ../gmm-cuda/cpu_reference.h ../gmm-cuda/verification.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:

@@ -27,6 +27,8 @@
 
 #include "gaussian_kernel.cpp"
 #include "cluster.cpp"
+#include "../gmm-cuda/cpu_reference.h"
+#include "../gmm-cuda/verification.h"
 #include "readData.cpp"
 
 
@@ -67,6 +69,10 @@ int main( int argc, char** argv) {
 
   clusters_t saved_clusters;
   memcpy(&saved_clusters,clusters,sizeof(clusters_t));
+
+  bool verification_ok = verifyWithCpuReference(&saved_clusters, ideal_num_clusters,
+      original_num_clusters, desired_num_clusters, num_dimensions, num_events,
+      fcs_data_by_event);
 
   const char* result_suffix = ".results";
   const char* summary_suffix = ".summary";
@@ -137,5 +143,5 @@ int main( int argc, char** argv) {
 
   printf("Execution time of the cluster function %f (s)\n", time * 1e-9f);
 
-  return 0;
+  return verification_ok ? 0 : 1;
 }
