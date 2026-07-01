@@ -1,3 +1,4 @@
+ROCM_PATH ?= /opt/rocm
 #===============================================================================
 # User Options
 #===============================================================================
@@ -23,7 +24,7 @@ obj = $(source:.cu=.o)
 #===============================================================================
 
 # Standard Flags
-CFLAGS := $(EXTRA_CFLAGS) -std=c++17 -Wall -I/opt/rocm/include/hipblas
+CFLAGS := $(EXTRA_CFLAGS) -std=c++17 -Wall -I$(ROCM_PATH)/include/hipblas
 
 # Linker Flags
 LDFLAGS = -lhipblas 
