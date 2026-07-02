@@ -38,9 +38,9 @@ struct to_vector<8>
 
 // AIR TopK start
 
-using WideT                        = fp32x4;
-constexpr int VECTORIZED_READ_SIZE = 16;
-constexpr int WARP_SIZE            = 64;
+using WideT                             = fp32x4;
+constexpr int VECTORIZED_READ_SIZE      = 16;
+constexpr int VECTORIZED_TAIL_THREADS   = 32;
 
 enum class Phase
 {
@@ -248,8 +248,8 @@ vectorized_process(size_t thread_rank, size_t num_threads, T const* in, IdxT len
             }
         }
 
-        static_assert(WARP_SIZE >= items_per_scalar);
-        // and because items_per_scalar > skip_cnt, WARP_SIZE > skip_cnt
+        static_assert(VECTORIZED_TAIL_THREADS >= items_per_scalar);
+        // and because items_per_scalar > skip_cnt, VECTORIZED_TAIL_THREADS > skip_cnt
         // no need to use loop
         if(thread_rank < skip_cnt)
         {
@@ -260,7 +260,7 @@ vectorized_process(size_t thread_rank, size_t num_threads, T const* in, IdxT len
         // len_cast * items_per_scalar + items_per_scalar > len - skip_cnt;
         // and so
         // len - (skip_cnt + len_cast * items_per_scalar) < items_per_scalar <=
-        // WARP_SIZE no need to use loop
+        // VECTORIZED_TAIL_THREADS, so no loop is needed
         const IdxT remain_i = skip_cnt + len_cast * items_per_scalar + thread_rank;
         if(remain_i < len)
         {
@@ -275,7 +275,7 @@ vectorized_process(size_t thread_rank, size_t num_threads, T const* in, IdxT len
     }
 }
 
-// sync_width should >= WARP_SIZE
+// sync_width should >= VECTORIZED_TAIL_THREADS
 template <typename T, typename IdxT, typename Func>
 __device__ void vectorized_process(T const* in, IdxT len, Func f, int sync_width)
 {
@@ -326,9 +326,9 @@ __device__ void vectorized_process(T const* in, IdxT len, Func f, int sync_width
             }
         }
 
-        static_assert(WARP_SIZE >= items_per_scalar);
-        // need at most one warp for skipped and remained elements,
-        // and sync_width >= WARP_SIZE
+        static_assert(VECTORIZED_TAIL_THREADS >= items_per_scalar);
+        // Need at most this many threads for skipped and remained elements,
+        // and sync_width >= VECTORIZED_TAIL_THREADS
         if(tid < sync_width)
         {
             bool valid = tid < skip_cnt;
