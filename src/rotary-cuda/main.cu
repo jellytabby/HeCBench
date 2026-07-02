@@ -1,5 +1,6 @@
 #include <chrono>
 #include <cstdio>
+#include <random>
 #include <thrust/tuple.h>
 
 #define C10_WARP_SIZE 32
@@ -211,7 +212,7 @@ __global__ void unrolled_elementwise_kernel_for_multi_outputs(int N, func_t f, a
 }
 
 template <int num_outputs, typename func_t, typename array_t, typename inp_calc_t, typename out_calc_t>
-static inline void launch_unrolled_kernel_for_multi_outputs(int64_t N, const func_t& f, array_t data, inp_calc_t ic, out_calc_t oc) {
+static inline void encode(int64_t N, const func_t& f, array_t data, inp_calc_t ic, out_calc_t oc) {
   int64_t grid = (N + block_work_size() - 1) / block_work_size();
   unrolled_elementwise_kernel_for_multi_outputs<num_outputs, func_t, array_t><<<grid, num_threads()>>>(N, f, data, ic, oc);
 }
@@ -227,7 +228,9 @@ struct TrivialOffsetCalculator {
 
   C10_HOST_DEVICE offset_type get(index_t linear_idx) const {
     offset_type offsets;
+#ifdef __CUDA_ARCH__
     #pragma unroll
+#endif
     for (int arg = 0; arg < NARGS; arg++) {
       offsets[arg] = linear_idx;
     }
@@ -240,11 +243,15 @@ void gpu_kernel_multiple_outputs_impl(const int repeat, const func_t& f) {
   constexpr int num_outputs = 2;
   constexpr int num_inputs = 4;
   constexpr int ntensors = num_outputs + num_inputs;
+  constexpr int rotary_dim = 128;
+  constexpr int rotary_pairs = rotary_dim / 2;
 
-  int64_t numel = block_work_size() * 10000;
-  printf("Number of elements: %zu\n", numel);
+  int num_tokens = block_work_size() * 10000;
+  printf("Number of tokens: %d\n", num_tokens);
+  printf("Rotary dimensions per token: %d\n", rotary_dim);
 
-  uint64_t size = numel * sizeof(float);
+  size_t numel = (size_t) num_tokens * rotary_pairs;
+  size_t size = numel * sizeof(float);
   
   float *h_x1 = (float*) malloc (size);
   float *h_x2 = (float*) malloc (size);
@@ -252,12 +259,17 @@ void gpu_kernel_multiple_outputs_impl(const int repeat, const func_t& f) {
   float *h_sin = (float*) malloc (size);
   float *h_o1 = (float*) malloc (size);
   float *h_o2 = (float*) malloc (size);
-  for (int64_t i = 0; i < numel; i++) {
-    float fi = i;
-    h_x1[i]  = (fi + 1.f) / numel;
-    h_x2[i]  = (fi + 1.f) / numel;
-    h_cos[i] = cosf(fi / powf(10000.f, fi / numel));
-    h_sin[i] = sinf(fi / powf(10000.f, fi / numel));
+  std::mt19937 rng(12345);
+  std::normal_distribution<float> input_dist(0.f, 1.f);
+  for (size_t i = 0; i < numel; i++) {
+    float position = i / rotary_pairs;
+    float pair_index = i % rotary_pairs;
+    float angle = position / powf(10000.f, 2.f * pair_index / rotary_dim);
+
+    h_x1[i]  = input_dist(rng);
+    h_x2[i]  = input_dist(rng);
+    h_cos[i] = cosf(angle);
+    h_sin[i] = sinf(angle);
   }
   
   float *d_x1, *d_x2, *d_cos, *d_sin, *d_o1, *d_o2;
@@ -284,13 +296,13 @@ void gpu_kernel_multiple_outputs_impl(const int repeat, const func_t& f) {
   auto input_calc = TrivialOffsetCalculator<num_inputs>();
   auto output_calc = TrivialOffsetCalculator<num_outputs>();
 
-  printf("Number of blocks: %zu, block size: %d\n", 
+  printf("Number of thread blocks: %zu, thread block size: %d\n",
          (numel + block_work_size() - 1) / block_work_size(), num_threads());
 
   auto start = std::chrono::steady_clock::now();
 
   for (int i = 0; i < repeat; i++) {
-    launch_unrolled_kernel_for_multi_outputs<num_outputs>(numel, f, data, input_calc, output_calc);
+    encode<num_outputs>(numel, f, data, input_calc, output_calc);
   }
 
   cudaDeviceSynchronize();
@@ -301,7 +313,7 @@ void gpu_kernel_multiple_outputs_impl(const int repeat, const func_t& f) {
   cudaMemcpy(h_o1, d_o1, size, cudaMemcpyDeviceToHost);
   cudaMemcpy(h_o2, d_o2, size, cudaMemcpyDeviceToHost);
   bool ok = true;
-  for (int64_t i = 0; i < numel; i++) {
+  for (size_t i = 0; i < numel; i++) {
     float r1 = float(h_x1[i]) * float(h_cos[i]) - float(h_x2[i]) * float(h_sin[i]);
     float r2 = float(h_x1[i]) * float(h_sin[i]) + float(h_x2[i]) * float(h_cos[i]);
     if ((r1 - h_o1[i]) > 1e-3f || (r2 - h_o2[i]) > 1e-3f) {

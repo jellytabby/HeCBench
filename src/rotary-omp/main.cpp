@@ -2,6 +2,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cmath>
+#include <random>
 #include <omp.h>
 
 constexpr int NUM_THREADS      = 128;
@@ -33,12 +34,15 @@ void launch_kernel(int64_t N,
 
 void gpu_kernel_multiple_outputs_impl(int repeat)
 {
-  int64_t numel = (int64_t)BLOCK_WORK_SIZE * 10000;
-  printf("Number of elements: %zu\n", numel);
-  printf("Number of teams (blocks): %zu, threads per team: %d\n",
-      (size_t)((numel + BLOCK_WORK_SIZE - 1) / BLOCK_WORK_SIZE), NUM_THREADS);
+  constexpr int rotary_dim = 128;
+  constexpr int rotary_pairs = rotary_dim / 2;
 
-  uint64_t size = numel * sizeof(float);
+  int num_tokens = BLOCK_WORK_SIZE * 10000;
+  printf("Number of tokens: %d\n", num_tokens);
+  printf("Rotary dimensions per token: %d\n", rotary_dim);
+
+  size_t numel = (size_t) num_tokens * rotary_pairs;
+  size_t size = numel * sizeof(float);
 
   float* h_x1  = (float*)malloc(size);
   float* h_x2  = (float*)malloc(size);
@@ -47,13 +51,21 @@ void gpu_kernel_multiple_outputs_impl(int repeat)
   float* h_o1  = (float*)malloc(size);
   float* h_o2  = (float*)malloc(size);
 
-  for (int64_t i = 0; i < numel; i++) {
-    float fi = i;
-    h_x1[i]  = (fi + 1.f) / numel;
-    h_x2[i]  = (fi + 1.f) / numel;
-    h_cos[i] = cosf(fi / powf(10000.f, fi / numel));
-    h_sin[i] = sinf(fi / powf(10000.f, fi / numel));
+  std::mt19937 rng(12345);
+  std::normal_distribution<float> input_dist(0.f, 1.f);
+  for (size_t i = 0; i < numel; i++) {
+    float position = i / rotary_pairs;
+    float pair_index = i % rotary_pairs;
+    float angle = position / powf(10000.f, 2.f * pair_index / rotary_dim);
+
+    h_x1[i]  = input_dist(rng);
+    h_x2[i]  = input_dist(rng);
+    h_cos[i] = cosf(angle);
+    h_sin[i] = sinf(angle);
   }
+
+  printf("Number of OpenMP teams (blocks): %zu, threads per team: %d\n",
+      (size_t)((numel + BLOCK_WORK_SIZE - 1) / BLOCK_WORK_SIZE), NUM_THREADS);
 
   #pragma omp target data map(to: h_x1[0:numel], h_x2[0:numel], h_cos[0:numel], h_sin[0:numel]) \
                           map(from: h_o1[0:numel], h_o2[0:numel])

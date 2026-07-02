@@ -1,5 +1,6 @@
 #include <chrono>
 #include <cstdio>
+#include <random>
 #include <sycl/sycl.hpp>
 
 #define C10_WARP_SIZE 32
@@ -214,11 +215,10 @@ void unrolled_elementwise_kernel_for_multi_outputs(int N, func_t f, array_t data
 }
 
 template <int num_outputs, typename func_t, typename array_t, typename inp_calc_t, typename out_calc_t>
-static inline void launch_unrolled_kernel_for_multi_outputs(sycl::queue &q, int64_t N, const func_t& f, array_t data, inp_calc_t ic, out_calc_t oc) {
-  int64_t grid = (N + block_work_size() - 1) / block_work_size();
+static inline void encode(sycl::queue &q, int64_t N, const func_t& f, array_t data, inp_calc_t ic, out_calc_t oc) {
+  int64_t gws = (N + block_work_size() - 1) / block_work_size() * num_threads();
   q.parallel_for(
-      sycl::nd_range<3>(sycl::range<3>(1, 1, grid) *
-                        sycl::range<3>(1, 1, num_threads()),
+      sycl::nd_range<3>(sycl::range<3>(1, 1, gws),
                         sycl::range<3>(1, 1, num_threads())),
       [=](sycl::nd_item<3> item) {
         unrolled_elementwise_kernel_for_multi_outputs<num_outputs, func_t,
@@ -251,24 +251,33 @@ void gpu_kernel_multiple_outputs_impl(const int repeat, const func_t &f) {
   constexpr int num_outputs = 2;
   constexpr int num_inputs = 4;
   constexpr int ntensors = num_outputs + num_inputs;
+  constexpr int rotary_dim = 128;
+  constexpr int rotary_pairs = rotary_dim / 2;
 
-  int64_t numel = block_work_size() * 10000;
-  printf("Number of elements: %zu\n", numel);
+  int num_tokens = block_work_size() * 10000;
+  printf("Number of tokens: %d\n", num_tokens);
+  printf("Rotary dimensions per token: %d\n", rotary_dim);
 
-  uint64_t size = numel * sizeof(float);
-  
+  size_t numel = (size_t) num_tokens * rotary_pairs;
+  size_t size = numel * sizeof(float);
+
   float *h_x1 = (float*) malloc (size);
   float *h_x2 = (float*) malloc (size);
   float *h_cos = (float*) malloc (size);
   float *h_sin = (float*) malloc (size);
   float *h_o1 = (float*) malloc (size);
   float *h_o2 = (float*) malloc (size);
-  for (int64_t i = 0; i < numel; i++) {
-    float fi = i;
-    h_x1[i]  = (fi + 1.f) / numel;
-    h_x2[i]  = (fi + 1.f) / numel;
-    h_cos[i] = cosf(fi / powf(10000.f, fi / numel));
-    h_sin[i] = sinf(fi / powf(10000.f, fi / numel));
+  std::mt19937 rng(12345);
+  std::normal_distribution<float> input_dist(0.f, 1.f);
+  for (size_t i = 0; i < numel; i++) {
+    float position = i / rotary_pairs;
+    float pair_index = i % rotary_pairs;
+    float angle = position / powf(10000.f, 2.f * pair_index / rotary_dim);
+
+    h_x1[i]  = input_dist(rng);
+    h_x2[i]  = input_dist(rng);
+    h_cos[i] = cosf(angle);
+    h_sin[i] = sinf(angle);
   }
 
 #ifdef USE_GPU
@@ -308,7 +317,7 @@ void gpu_kernel_multiple_outputs_impl(const int repeat, const func_t &f) {
   auto start = std::chrono::steady_clock::now();
 
   for (int i = 0; i < repeat; i++) {
-    launch_unrolled_kernel_for_multi_outputs<num_outputs>(q, numel, f, data, input_calc, output_calc);
+    encode<num_outputs>(q, numel, f, data, input_calc, output_calc);
   }
 
   q.wait();
