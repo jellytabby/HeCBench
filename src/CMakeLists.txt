@@ -526,6 +526,7 @@ set(HECBENCH_POC_BENCHMARKS
     groupnorm
     hadamard
     halo-finder
+    jacobian
     leukocyte
     miniFE
     mergeVS
