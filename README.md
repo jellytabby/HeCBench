@@ -209,6 +209,8 @@ When double-precision floating-point operations are not supported on certain Int
 
 # Feedback from the papers
 
+Stephenson, M., Damani, S., Tarek Ibn Ziad, M., Ladram, A. and Garland, M., 2026. SuperCollider: Scalable and Effective Data Race Detection for CUDA. Proceedings of the ACM on Programming Languages, 10(PLDI), pp.2303-2327.
+
 Velesko, P., Jääskeläinen, P., Linjamäki, H., Babej, M., Tu, P., Sarkar, S., Ashbaugh, B., Bertoni, C., Chen, J., Roth, P.C. and Elwasif, W., 2025. chipStar: Making HIP/CUDA applications cross-vendor portable by building on open standards. The International Journal of High Performance Computing Applications, p.10943420261423001.
 
 Ghosh, A., Nayak, A., Shyam, D.R.T. and Basu, A., 2026. Chasing Elusive Memory Bugs in GPU Programs. arXiv preprint arXiv:2601.21552.
@@ -1819,6 +1821,8 @@ Abhishek Bagusetty, Andrew Barker, Andrey Alekseenko, Anton Gorshkov, Beau Johns
 Codeplay<sup>®</sup> and Intel<sup>®</sup> for their contributions to the oneAPI ecosystem   
 
 The project used resources at the Intel<sup>®</sup> DevCloud, the Chameleon testbed supported by the National Science Foundation, the University of Oregon Neuroinformatics Center, the Argonne Leadership Computing Facility supported by the Office of Science of the U.S. Department of Energy under Contract No. DE-AC02-06CH11357, and the Experimental Computing Laboratory (ExCL) at Oak Ridge National Laboratory supported by the Office of Science of the U.S. Department of Energy under Contract No. DE-AC05-00OR22725.
+
+The project was assisted by AI Coders.
 
 ## License
 HeCBench has a BSD-3 license, as found in the [LICENSE](LICENSE) file.
