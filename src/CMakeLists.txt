@@ -474,11 +474,14 @@ set(HECBENCH_POC_BENCHMARKS
     bitpacking
     bitpermute
     blas-dot
+    blas-fp4gemm
     blas-fp8gemm
+    blas-mxfp8gemm
     blas-gemmBatched
     blas-gemmEx
     blas-gemmEx2
     blas-gemmStridedBatched
+    blas-groupgemm
     blockAccess
     blockexchange
     blockScan
