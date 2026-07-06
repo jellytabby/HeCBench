@@ -142,13 +142,15 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
-    // M = N = 8192, sweep K -- following the benchmark shapes in reference.py.
-    const int M = 8192;
-    const int N = 8192;
-    const int Ks[5] = {512, 1024, 2048, 4096, 8192};
+    const int shapes[6][3] = {{16384, 8192, 1280},
+                              {16384, 1024, 8192},
+                              {16384, 8192, 7168},
+                              {16384, 3584, 8192},
+                              {8192, 8192, 8192},
+                              {16384, 16384, 16384}};
 
-    for (int i = 0; i < 5; i++) {
-        int m = M, n = N, k = Ks[i];
+    for (int i = 0; i < 6; i++) {
+        int m = shapes[i][0], n = shapes[i][1], k = shapes[i][2];
         printf("Matrix dimension (M, N, K) = (%d, %d, %d)\n", m, n, k);
 
         Fp4TestBench props(m, n, k, 1.0f, 0.0f, 32ULL * 1024 * 1024);

@@ -120,13 +120,14 @@ int main(int argc, char *argv[])
    }
    const int repeat = atoi(argv[1]);
 
-   const int shapes[5][3] = {{16384, 8192, 1280},
+   const int shapes[6][3] = {{16384, 8192, 1280},
                              {16384, 1024, 8192},
                              {16384, 8192, 7168},
                              {16384, 3584, 8192},
-                             {8192, 8192, 8192}};
+                             {8192, 8192, 8192},
+                             {16384, 16384, 16384}};
 
-   for (int i = 0; i < 5; i++) {
+   for (int i = 0; i < 6; i++) {
 
      int m = shapes[i][0], n = shapes[i][1], k = shapes[i][2];
      printf("Matrix dimension (M, N, K) = (%d, %d, %d)\n", m, n, k);
