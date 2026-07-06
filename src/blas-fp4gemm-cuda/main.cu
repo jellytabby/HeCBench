@@ -86,6 +86,19 @@ void LtFp4Matmul(const int repeat,
         return;
     }
 
+    // Warm up
+    checkCublasStatus(cublasLtMatmul(ltHandle,
+                                     operationDesc,
+                                     alpha, A, Adesc,
+                                     B, Bdesc, beta,
+                                     D, Cdesc,
+                                     D, Ddesc,
+                                     &heuristicResult.algo,
+                                     workspace,
+                                     workspaceSize,
+                                     0));
+    cudaDeviceSynchronize();
+
     auto start = std::chrono::steady_clock::now();
 
     for (int i = 0; i < repeat; i++) {

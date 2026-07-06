@@ -85,6 +85,19 @@ void LtMxfp8Matmul(const int repeat,
         return;
     }
 
+    // Warm up
+    checkHipblasStatus(hipblasLtMatmul(ltHandle,
+                                       operationDesc,
+                                       alpha, A, Adesc,
+                                       B, Bdesc, beta,
+                                       D, Cdesc,
+                                       D, Ddesc,
+                                       &heuristicResult.algo,
+                                       workspace,
+                                       workspaceSize,
+                                       0));
+    checkHipStatus(hipDeviceSynchronize());
+
     auto start = std::chrono::steady_clock::now();
 
     for (int i = 0; i < repeat; i++) {
