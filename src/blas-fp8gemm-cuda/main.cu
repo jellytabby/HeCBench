@@ -154,6 +154,8 @@ int main(int argc, char *argv[])
                       props.workspace,
                       props.workspaceSize);
       });
+
+     props.verify();
     }
 
     return 0;
