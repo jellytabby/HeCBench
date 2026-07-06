@@ -19,7 +19,7 @@
 /// A and B are FP4 (CUDA_R_4F_E2M1) packed two elements per byte along K.
 /// The block scales are UE4M3 (CUDA_R_8F_UE4M3) with one scale per 16 elements
 /// along the K dimension (scale mode CUBLASLT_MATMUL_MATRIX_SCALE_VEC16_UE4M3).
-/// Output D is FP16.
+/// Output D is BF16.
 ///
 /// A is stored (M,K) row-major and B is stored (N,K) row-major. To compute
 /// A @ B^T on the column-major cuBLASLt we use transa = OP_T, transb = OP_N so
@@ -37,7 +37,7 @@ void LtFp4Matmul(const int repeat,
                  const void *b_scale, /* device pointer, UE4M3 block scales */
                  const void *B,       /* device pointer, packed FP4 (N,K) */
                  int ldb,
-                 __half *D,           /* device pointer, FP16 (M,N) */
+                 __nv_bfloat16 *D,    /* device pointer, BF16 (M,N) */
                  int ldd,
                  void *workspace,
                  size_t workspaceSize) {
@@ -67,8 +67,8 @@ void LtFp4Matmul(const int repeat,
     // Create matrix descriptors. FP4 dimensions are in elements (packed 2/byte).
     checkCublasStatus(cublasLtMatrixLayoutCreate(&Adesc, CUDA_R_4F_E2M1, k, m, lda));
     checkCublasStatus(cublasLtMatrixLayoutCreate(&Bdesc, CUDA_R_4F_E2M1, k, n, ldb));
-    checkCublasStatus(cublasLtMatrixLayoutCreate(&Cdesc, CUDA_R_16F, m, n, ldd));
-    checkCublasStatus(cublasLtMatrixLayoutCreate(&Ddesc, CUDA_R_16F, m, n, ldd));
+    checkCublasStatus(cublasLtMatrixLayoutCreate(&Cdesc, CUDA_R_16BF, m, n, ldd));
+    checkCublasStatus(cublasLtMatrixLayoutCreate(&Ddesc, CUDA_R_16BF, m, n, ldd));
 
     checkCublasStatus(cublasLtMatmulPreferenceCreate(&preference));
     checkCublasStatus(cublasLtMatmulPreferenceSetAttribute(preference, CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES, &workspaceSize, sizeof(workspaceSize)));

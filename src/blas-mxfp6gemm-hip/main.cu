@@ -18,7 +18,7 @@
 /// A and B are FP6 (HIP_R_6F_E2M3) packed four elements per three bytes along K.
 /// The block scales are E8M0 (HIP_R_8F_UE8M0) with one scale per 32 elements
 /// along the K dimension (scale mode HIPBLASLT_MATMUL_MATRIX_SCALE_VEC32_UE8M0).
-/// Output D is FP16.
+/// Output D is BF16.
 ///
 /// A is stored (M,K) row-major and B is stored (N,K) row-major. To compute
 /// A @ B^T on the column-major hipBLASLt we use transa = OP_T, transb = OP_N so
@@ -36,7 +36,7 @@ void LtMxfp6Matmul(const int repeat,
                    const void *b_scale, /* device pointer, UE8M0 block scales */
                    const void *B,       /* device pointer, packed FP6 (N,K) */
                    int ldb,
-                   __half *D,           /* device pointer, FP16 (M,N) */
+                   __hip_bfloat16 *D,   /* device pointer, BF16 (M,N) */
                    int ldd,
                    void *workspace,
                    size_t workspaceSize) {
@@ -66,8 +66,8 @@ void LtMxfp6Matmul(const int repeat,
     // Create matrix descriptors. FP6 dimensions are in elements (packed 4/3 bytes).
     checkHipblasStatus(hipblasLtMatrixLayoutCreate(&Adesc, HIP_R_6F_E2M3, k, m, lda));
     checkHipblasStatus(hipblasLtMatrixLayoutCreate(&Bdesc, HIP_R_6F_E2M3, k, n, ldb));
-    checkHipblasStatus(hipblasLtMatrixLayoutCreate(&Cdesc, HIP_R_16F, m, n, ldd));
-    checkHipblasStatus(hipblasLtMatrixLayoutCreate(&Ddesc, HIP_R_16F, m, n, ldd));
+    checkHipblasStatus(hipblasLtMatrixLayoutCreate(&Cdesc, HIP_R_16BF, m, n, ldd));
+    checkHipblasStatus(hipblasLtMatrixLayoutCreate(&Ddesc, HIP_R_16BF, m, n, ldd));
 
     checkHipblasStatus(hipblasLtMatmulPreferenceCreate(&preference));
     checkHipblasStatus(hipblasLtMatmulPreferenceSetAttribute(preference, HIPBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES, &workspaceSize, sizeof(workspaceSize)));
