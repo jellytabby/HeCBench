@@ -1,6 +1,16 @@
 #include <chrono>
 #include "helper.h"
 
+// FP8 encoding differs by GPU architecture:
+//   gfx940/gfx942 (MI300)  -> FNUZ  (HIP_R_8F_E4M3_FNUZ)
+//   gfx950        (MI350)  -> OCP   (HIP_R_8F_E4M3)
+// The __gfx__ preprocessor macros are only defined during device compilation,
+// so the selection is done at runtime (host code) by inspecting the arch name.
+static hipDataType selectFp8Type() {
+    // gfx950 and newer use the OCP FP8 format; gfx94x use FNUZ.
+    return fp8IsOcp() ? HIP_R_8F_E4M3 : HIP_R_8F_E4M3_FNUZ;
+}
+
 /// Sample wrapper executing fp8 matmul with hipblasLtMatmul, with addition of per-tensor scaling, amax calculations, and
 /// the workspace to support split-K algorithms.
 ///
@@ -29,7 +39,8 @@ void LtFp8Matmul(const int repeat,
                  //hipblasLtBfloat16 *D,
                  float *amax_d, /* device pointer */
                  void *workspace,
-                 size_t workspaceSize) {
+                 size_t workspaceSize,
+                 hipDataType fp8Type) {
     hipblasLtMatmulDesc_t operationDesc = NULL;
     hipblasLtMatrixLayout_t Adesc = NULL, Bdesc = NULL, Cdesc = NULL, Ddesc = NULL;
     hipblasLtMatmulPreference_t preference = NULL;
@@ -51,7 +62,6 @@ void LtFp8Matmul(const int repeat,
     checkHipblasStatus(hipblasLtMatmulDescSetAttribute(operationDesc, HIPBLASLT_MATMUL_DESC_B_SCALE_POINTER, &b_scale, sizeof(b_scale)));
     checkHipblasStatus(hipblasLtMatmulDescSetAttribute(operationDesc, HIPBLASLT_MATMUL_DESC_C_SCALE_POINTER, &c_scale, sizeof(c_scale)));
     checkHipblasStatus(hipblasLtMatmulDescSetAttribute(operationDesc, HIPBLASLT_MATMUL_DESC_D_SCALE_POINTER, &d_scale, sizeof(d_scale)));
-    checkHipblasStatus(hipblasLtMatmulDescSetAttribute(operationDesc, HIPBLASLT_MATMUL_DESC_AMAX_D_POINTER, &amax_d, sizeof(amax_d)));
 
     // set fast accumulation
     //int8_t fast_accum = 1;
@@ -59,13 +69,10 @@ void LtFp8Matmul(const int repeat,
 
     // create matrix descriptors, we are good with the details here so no need to set any extra attributes
     // table of supported type combinations can be found in the documentation: https://docs.nvidia.com/cuda/hipblas/index.html#hipblasltmatmul
-    checkHipblasStatus(hipblasLtMatrixLayoutCreate(&Adesc, HIP_R_8F_E4M3_FNUZ, transa == HIPBLAS_OP_N ? m : k, transa == HIPBLAS_OP_N ? k : m, lda));
-    checkHipblasStatus(hipblasLtMatrixLayoutCreate(&Bdesc, HIP_R_8F_E4M3_FNUZ, transb == HIPBLAS_OP_N ? k : n, transb == HIPBLAS_OP_N ? n : k, ldb));
-    // no heuristic function available for current configuration
-    //checkHipblasStatus(hipblasLtMatrixLayoutCreate(&Cdesc, HIP_R_16BF, m, n, ldc));
-    //checkHipblasStatus(hipblasLtMatrixLayoutCreate(&Ddesc, HIP_R_16BF, m, n, ldc));
-    checkHipblasStatus(hipblasLtMatrixLayoutCreate(&Cdesc, HIP_R_8F_E4M3_FNUZ, m, n, ldc));
-    checkHipblasStatus(hipblasLtMatrixLayoutCreate(&Ddesc, HIP_R_8F_E4M3_FNUZ, m, n, ldc));
+    checkHipblasStatus(hipblasLtMatrixLayoutCreate(&Adesc, fp8Type, transa == HIPBLAS_OP_N ? m : k, transa == HIPBLAS_OP_N ? k : m, lda));
+    checkHipblasStatus(hipblasLtMatrixLayoutCreate(&Bdesc, fp8Type, transb == HIPBLAS_OP_N ? k : n, transb == HIPBLAS_OP_N ? n : k, ldb));
+    checkHipblasStatus(hipblasLtMatrixLayoutCreate(&Cdesc, fp8Type, m, n, ldc));
+    checkHipblasStatus(hipblasLtMatrixLayoutCreate(&Ddesc, fp8Type, m, n, ldc));
 
     // create preference handle; here we could use extra attributes to disable tensor ops or to make sure algo selected
     // will work with badly aligned A, B, C; here for simplicity we just assume A,B,C are always well aligned (e.g.
@@ -73,9 +80,23 @@ void LtFp8Matmul(const int repeat,
     checkHipblasStatus(hipblasLtMatmulPreferenceCreate(&preference));
     checkHipblasStatus(hipblasLtMatmulPreferenceSetAttribute(preference, HIPBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES, &workspaceSize, sizeof(workspaceSize)));
 
+    // Request the fused amax(|D|) epilogue. Not every architecture / library
+    // build ships a kernel with this epilogue (e.g. it is absent from the
+    // gfx950 solution library in some ROCm releases). Try with it first and,
+    // if no algorithm is found, fall back to running without it so the
+    // benchmark still executes.
+    checkHipblasStatus(hipblasLtMatmulDescSetAttribute(operationDesc, HIPBLASLT_MATMUL_DESC_AMAX_D_POINTER, &amax_d, sizeof(amax_d)));
+
     // we just need the best available heuristic to try and run matmul. There is no guarantee this will work, e.g. if A
     // is badly aligned, you can request more (e.g. 32) algos and try to run them one by one until something works
     checkHipblasStatus(hipblasLtMatmulAlgoGetHeuristic(ltHandle, operationDesc, Adesc, Bdesc, Cdesc, Ddesc, preference, 1, &heuristicResult, &returnedResults));
+
+    if (returnedResults == 0) {
+        // Retry without the fused amax epilogue.
+        void *nullAmax = nullptr;
+        checkHipblasStatus(hipblasLtMatmulDescSetAttribute(operationDesc, HIPBLASLT_MATMUL_DESC_AMAX_D_POINTER, &nullAmax, sizeof(nullAmax)));
+        checkHipblasStatus(hipblasLtMatmulAlgoGetHeuristic(ltHandle, operationDesc, Adesc, Bdesc, Cdesc, Ddesc, preference, 1, &heuristicResult, &returnedResults));
+    }
 
     if (returnedResults == 0) {
         printf("no heuristic function available for current configuration\n");
@@ -97,7 +118,7 @@ void LtFp8Matmul(const int repeat,
                                      0));
     }
 
-    hipDeviceSynchronize();
+    checkHipStatus(hipDeviceSynchronize());
     auto end = std::chrono::steady_clock::now();
     auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
     auto ns_fp8 = (time / repeat);
@@ -122,6 +143,8 @@ int main(int argc, char *argv[])
    }
    const int repeat = atoi(argv[1]);
 
+   const hipDataType fp8Type = selectFp8Type();
+   printf("Using FP8 E4M3 format: %s\n", fp8Type == HIP_R_8F_E4M3 ? "OCP" : "FNUZ");
 
    const int shapes[6][3] = {{16384, 8192, 1280},
                              {16384, 1024, 8192},
@@ -135,6 +158,7 @@ int main(int argc, char *argv[])
      int m = shapes[i][0], n = shapes[i][1], k = shapes[i][2];
      printf("Matrix dimension (M, N, K) = (%d, %d, %d)\n", m, n, k);
 
+     // hipblaslt_f8_fnuz as 1-byte storage
      TestBench<hipblaslt_f8_fnuz,
                hipblaslt_f8_fnuz,
                //hipblasLtBfloat16,
@@ -142,7 +166,7 @@ int main(int argc, char *argv[])
                //hipblasLtBfloat16,
                float> props(m, n, k, 1.0f, 0.0f, 32ULL * 1024 * 1024);
 
-     props.run([&props, repeat] {
+     props.run([&props, repeat, fp8Type] {
           LtFp8Matmul(repeat,
                       props.ltHandle,
                       props.m,
@@ -156,8 +180,11 @@ int main(int argc, char *argv[])
                       props.DscaleDev, props.Ddev,
                       props.DamaxDev,
                       props.workspace,
-                      props.workspaceSize);
+                      props.workspaceSize,
+                      fp8Type);
       });
+
+     props.verify();
     }
 
     return 0;
