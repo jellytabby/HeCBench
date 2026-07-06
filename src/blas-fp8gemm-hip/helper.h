@@ -38,7 +38,8 @@
 #include <vector>
 #include <functional>
 
-#include <hip/hip_fp16.h>
+//#include <hip/hip_fp16.h>
+#include <hip/hip_bf16.h>
 #include <hip/hip_runtime_api.h>
 #include <hipblaslt/hipblaslt.h>
 
@@ -135,11 +136,11 @@ struct TestBench {
         checkHipStatus(hipStreamDestroy(stream));
     }
 
-    // Uniform value used for A and B so the exact GEMM result is known and
-    // FP8-representable. 2^-6 is a normal value in both E4M3 formats, and with
-    // all scales = 1 and beta = 0 the output D = FILL_VALUE^2 * K stays within
-    // the FP8 range and is exactly representable for every benchmark shape.
-    static constexpr float FILL_VALUE = 0.015625f; // 2^-6
+    // Uniform value used for the FP8 A and B inputs so the exact GEMM result is
+    // known. 1.0 is exactly representable in both E4M3 formats; with all scales
+    // = 1 and beta = 0 every output element equals FILL_VALUE^2 * K, which the
+    // BF16 output represents exactly for every benchmark shape.
+    static constexpr float FILL_VALUE = 1.0f;
 
     void fillData() {
         uint8_t aByte = encodeE4M3(FILL_VALUE, fp8Ocp);
@@ -152,13 +153,13 @@ struct TestBench {
     }
 
     // CPU reference check. With uniform inputs, alpha = 1, beta = 0 and all
-    // per-tensor scales = 1, every output element equals FILL_VALUE^2 * K.
+    // per-tensor input scales = 1, every output element equals FILL_VALUE^2 * K.
+    // The output D is BF16.
     bool verify(double relTol = 1e-2) {
-        const uint8_t *dp = reinterpret_cast<const uint8_t*>(Dhost.data());
         double expected = (double)FILL_VALUE * (double)FILL_VALUE * (double)k;
         double maxErr = 0.0;
         for (int i = 0; i < m * n * N; i++)
-            maxErr = std::max(maxErr, std::fabs((double)decodeE4M3(dp[i], fp8Ocp) - expected));
+            maxErr = std::max(maxErr, std::fabs((double)__bfloat162float(Dhost[i]) - expected));
         bool ok = maxErr <= relTol * (std::fabs(expected) + 1.0);
         printf("Verification: expected %.6g, max abs error %.4g -> %s\n",
                expected, maxErr, ok ? "PASS" : "FAIL");
@@ -212,17 +213,3 @@ struct TestBench {
     ComputeType AscaleHost, BscaleHost, CscaleHost, DscaleHost, DamaxHost;
     ComputeType *AscaleDev, *BscaleDev, *CscaleDev, *DscaleDev, *DamaxDev;
 };
-
-template <>
-inline void TestBench<__half, __half,  __half, float>::fillData() {
-    for (int i = 0; i < m * k * N; i++) Ahost[i] = __float2half_rn(i);
-    for (int i = 0; i < n * k * N; i++) Bhost[i] = __float2half_rn(i);
-    for (int i = 0; i < n * k * N; i++) Chost[i] = __float2half_rn(-i);
-}
-
-template <>
-inline void TestBench<__half, __half, __half, hipComplex>::fillData() {
-    for (int i = 0; i < m * k * N; i++) Ahost[i] = __float2half_rn(i/100.);
-    for (int i = 0; i < n * k * N; i++) Bhost[i] = __float2half_rn(i/100.);
-    for (int i = 0; i < n * k * N; i++) Chost[i] = __float2half_rn(-i/100.);
-}

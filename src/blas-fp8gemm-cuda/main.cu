@@ -1,8 +1,8 @@
 #include <chrono>
 #include "helper.h"
 
-/// Sample wrapper executing fp8 matmul with cublasLtMatmul, with addition of per-tensor scaling, amax calculations, and
-/// the workspace to support split-K algorithms.
+/// Sample wrapper executing fp8 matmul with cublasLtMatmul, with addition of per-tensor input scaling and the
+/// workspace to support split-K algorithms. A and B are FP8; the output D (and C) are BF16.
 ///
 /// pointer mode is for alpha and beta is always host, to change it configure the appropriate matmul descriptor
 /// attribute matmul is not using cublas handle's configuration of math mode, here tensor ops are implicitly allowed; to
@@ -20,13 +20,9 @@ void LtFp8Matmul(const int repeat,
                  const float *b_scale, /* device pointer */
                  const __nv_fp8_e4m3 *B,
                  int ldb,
-                 const float *c_scale, /* device pointer */
                  const __nv_bfloat16 *C,
                  int ldc,
-                 const float *d_scale, /* device pointer */
-                 __nv_fp8_e4m3 *D,
-                 //__nv_bfloat16 *D,
-                 float *amax_d, /* device pointer */
+                 __nv_bfloat16 *D,
                  void *workspace,
                  size_t workspaceSize) {
     cublasLtMatmulDesc_t operationDesc = NULL;
@@ -46,24 +42,21 @@ void LtFp8Matmul(const int repeat,
     checkCublasStatus(cublasLtMatmulDescSetAttribute(operationDesc, CUBLASLT_MATMUL_DESC_TRANSA, &transa, sizeof(transa)));
     checkCublasStatus(cublasLtMatmulDescSetAttribute(operationDesc, CUBLASLT_MATMUL_DESC_TRANSB, &transb, sizeof(transb)));
 
-    // set scaling factors
+    // per-tensor input scaling factors (only A and B are FP8; the BF16 output
+    // needs no D scale, and C/D scale + amax are not valid for a BF16 output)
     checkCublasStatus(cublasLtMatmulDescSetAttribute(operationDesc, CUBLASLT_MATMUL_DESC_A_SCALE_POINTER, &a_scale, sizeof(a_scale)));
     checkCublasStatus(cublasLtMatmulDescSetAttribute(operationDesc, CUBLASLT_MATMUL_DESC_B_SCALE_POINTER, &b_scale, sizeof(b_scale)));
-    checkCublasStatus(cublasLtMatmulDescSetAttribute(operationDesc, CUBLASLT_MATMUL_DESC_C_SCALE_POINTER, &c_scale, sizeof(c_scale)));
-    checkCublasStatus(cublasLtMatmulDescSetAttribute(operationDesc, CUBLASLT_MATMUL_DESC_D_SCALE_POINTER, &d_scale, sizeof(d_scale)));
-    checkCublasStatus(cublasLtMatmulDescSetAttribute(operationDesc, CUBLASLT_MATMUL_DESC_AMAX_D_POINTER, &amax_d, sizeof(amax_d)));
 
     // set fast accumulation
     int8_t fast_accum = 1;
     checkCublasStatus(cublasLtMatmulDescSetAttribute(operationDesc, CUBLASLT_MATMUL_DESC_FAST_ACCUM, &fast_accum, sizeof(fast_accum)));
 
-    // create matrix descriptors, we are good with the details here so no need to set any extra attributes
+    // create matrix descriptors: A and B are FP8, C and D are BF16.
     // table of supported type combinations can be found in the documentation: https://docs.nvidia.com/cuda/cublas/index.html#cublasltmatmul
     checkCublasStatus(cublasLtMatrixLayoutCreate(&Adesc, CUDA_R_8F_E4M3, transa == CUBLAS_OP_N ? m : k, transa == CUBLAS_OP_N ? k : m, lda));
     checkCublasStatus(cublasLtMatrixLayoutCreate(&Bdesc, CUDA_R_8F_E4M3, transb == CUBLAS_OP_N ? k : n, transb == CUBLAS_OP_N ? n : k, ldb));
     checkCublasStatus(cublasLtMatrixLayoutCreate(&Cdesc, CUDA_R_16BF, m, n, ldc));
-    checkCublasStatus(cublasLtMatrixLayoutCreate(&Ddesc, CUDA_R_8F_E4M3, m, n, ldc));
-    //checkCublasStatus(cublasLtMatrixLayoutCreate(&Ddesc, CUDA_R_16BF, m, n, ldc));
+    checkCublasStatus(cublasLtMatrixLayoutCreate(&Ddesc, CUDA_R_16BF, m, n, ldc));
 
     // create preference handle; here we could use extra attributes to disable tensor ops or to make sure algo selected
     // will work with badly aligned A, B, C; here for simplicity we just assume A,B,C are always well aligned (e.g.
@@ -79,6 +72,19 @@ void LtFp8Matmul(const int repeat,
         printf("no heuristic function available for current configuration\n");
         return;
     }
+
+    // Warm up
+    checkCublasStatus(cublasLtMatmul(ltHandle,
+                                   operationDesc,
+                                   alpha, A, Adesc,
+                                   B, Bdesc, beta,
+                                   C, Cdesc,
+                                   D, Ddesc,
+                                   &heuristicResult.algo,
+                                   workspace,
+                                   workspaceSize,
+                                   0));
+    cudaDeviceSynchronize();
 
     auto start = std::chrono::steady_clock::now();
 
@@ -132,10 +138,10 @@ int main(int argc, char *argv[])
      int m = shapes[i][0], n = shapes[i][1], k = shapes[i][2];
      printf("Matrix dimension (M, N, K) = (%d, %d, %d)\n", m, n, k);
 
-     TestBench<__nv_fp8_e4m3,
-               __nv_bfloat16, // C type
-               __nv_fp8_e4m3, // output type
-               //__nv_bfloat16, // output type
+     // A/B are FP8; C/D are BF16.
+     TestBench<__nv_fp8_e4m3,  // A/B input type
+               __nv_bfloat16,  // C type
+               __nv_bfloat16,  // output type
                float> props(m, n, k, 1.0f, 0.0f, 32ULL * 1024 * 1024);
 
      props.run([&props, repeat] {
@@ -148,9 +154,8 @@ int main(int argc, char *argv[])
                       &props.beta,
                       props.AscaleDev, props.Adev, props.k, // mxk
                       props.BscaleDev, props.Bdev, props.k, // kxn
-                      props.CscaleDev, props.Cdev, props.m, // mxn
-                      props.DscaleDev, props.Ddev,
-                      props.DamaxDev,
+                      props.Cdev, props.m, // mxn
+                      props.Ddev,
                       props.workspace,
                       props.workspaceSize);
       });
