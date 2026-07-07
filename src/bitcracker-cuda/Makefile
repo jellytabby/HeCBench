@@ -15,9 +15,9 @@ LAUNCHER  =
 
 program = main
 
-source = attack.cu  main.cu  utils.cu  w_blocks.cu
+source = attack.cu main.cu w_blocks.cu utils.cpp
 
-obj = $(source:.cu=.o)
+obj = attack.o main.o w_blocks.o utils.o
 
 #===============================================================================
 # Sets Flags
@@ -47,6 +47,9 @@ $(program): $(obj) Makefile
 	$(CC) $(CFLAGS) $(obj) -o $@ $(LDFLAGS)
 
 %.o: %.cu Makefile
+	$(CC) $(CFLAGS) -c $< -o $@
+
+utils.o: utils.cpp Makefile
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:

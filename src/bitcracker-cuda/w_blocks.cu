@@ -167,7 +167,7 @@ int evaluate_w_block(
   CUDA_CHECK( cudaMemcpy(padding_d, padding, PADDING_SIZE * sizeof(unsigned char), cudaMemcpyHostToDevice) );
 
   // launch kernel
-  cudaDeviceSynchronize();
+  CUDA_CHECK( cudaDeviceSynchronize() );
   auto start = std::chrono::steady_clock::now();
 
   kernel_w_block<<<1024, 16>>>(salt_d, padding_d, d_w_words_uint32);

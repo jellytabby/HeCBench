@@ -21,9 +21,9 @@ HIP_ARCH  = gfx908
 
 program = main
 
-source = attack.cpp  main.cpp  utils.cpp  w_blocks.cpp
+source = attack.cpp main.cpp w_blocks.cpp ../bitcracker-cuda/utils.cpp
 
-obj = $(source:.cpp=.o)
+obj = attack.o main.o w_blocks.o utils.o
 
 #===============================================================================
 # Sets Flags
@@ -72,6 +72,9 @@ $(program): $(obj)
 	$(CC) $(CFLAGS) $(obj) -o $@ $(LDFLAGS)
 
 %.o: %.cpp *.h
+	$(CC) $(CFLAGS) -c $< -o $@
+
+utils.o: ../bitcracker-cuda/utils.cpp
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:

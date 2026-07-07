@@ -1,5 +1,5 @@
 /*
- * BitCracker: BitLocker password cracking tool, HIP version.
+ * BitCracker: BitLocker password cracking tool, CUDA version.
  * Copyright (C) 2013-2017  Elena Ago <elena dot ago at gmail dot com>
  *              Massimo Bernaschi <massimo dot bernaschi at gmail dot com>
  * 
@@ -72,7 +72,7 @@ int parse_data(char *input_hash, unsigned char ** salt, unsigned char ** nonce, 
     return BIT_FAILURE;
   }
 
-  char * hash;
+  char * hash, * hash_base;
   char * p;
   int i, j;
   int salt_size, iterations, vmk_size, nonce_size;
@@ -84,7 +84,7 @@ int parse_data(char *input_hash, unsigned char ** salt, unsigned char ** nonce, 
   (*vmk)   = (unsigned char *) Calloc(VMK_SIZE,   sizeof(unsigned char));
   (*mac)   = (unsigned char *) Calloc(MAC_SIZE,   sizeof(unsigned char));
 
-  hash = (char *) Calloc(INPUT_HASH_SIZE, sizeof(char));
+  hash_base = hash = (char *) Calloc(INPUT_HASH_SIZE, sizeof(char));
 
   if(fgets(hash, INPUT_HASH_SIZE, fphash) == NULL)
   {
@@ -193,7 +193,7 @@ out:
   free(*nonce);
   free(*vmk);
   free(*mac);
-  free(hash);
+  free(hash_base);
 
   return BIT_FAILURE;
 }

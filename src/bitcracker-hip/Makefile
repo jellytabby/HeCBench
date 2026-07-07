@@ -14,9 +14,9 @@ LAUNCHER  =
 
 program = main
 
-source = attack.cu  main.cu  utils.cu  w_blocks.cu
+source = attack.cu main.cu w_blocks.cu ../bitcracker-cuda/utils.cpp
 
-obj = $(source:.cu=.o)
+obj = attack.o main.o w_blocks.o utils.o
 
 #===============================================================================
 # Sets Flags
@@ -46,6 +46,9 @@ $(program): $(obj) Makefile
 	$(CC) $(CFLAGS) $(obj) -o $@ $(LDFLAGS)
 
 %.o: %.cu *.h Makefile
+	$(CC) $(CFLAGS) -c $< -o $@
+
+utils.o: ../bitcracker-cuda/utils.cpp Makefile
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
