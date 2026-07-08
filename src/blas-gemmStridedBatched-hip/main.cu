@@ -130,7 +130,7 @@ void gemmBatched(
       if(stat != HIPBLAS_STATUS_SUCCESS){
         cerr << "Size " << size
              << " skipped because hipblas returned non-success status "
-             << status << endl;
+             << stat << endl;
         break;
       }
 
