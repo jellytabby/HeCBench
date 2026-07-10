@@ -57,15 +57,33 @@ inline void checkHipblasStatus(hipblasStatus_t status) {
     }
 }
 
-// FP8 E4M3 encoding differs by architecture: gfx950 uses the OCP format,
-// gfx94x uses the FNUZ format. Detect which one the current device needs so
-// that the host-side reference encoding/decoding matches the device layout.
-inline bool fp8IsOcp() {
+// FP8 E4M3 encoding differs by architecture. Rather than white-listing the
+// (ever-growing) set of OCP GPUs, we key off the one small, fixed exception:
+// the FNUZ encoding is only used by the CDNA3 generation (gfx940/gfx941/gfx942).
+// Every other FP8-capable AMD GPU uses the OCP encoding:
+//   CDNA3  (gfx940/gfx941/gfx942, MI300)          -> FNUZ (HIP_R_8F_E4M3_FNUZ)
+//   CDNA4  (gfx950, MI350)                         -> OCP  (HIP_R_8F_E4M3)
+//          (gfx1200/gfx1201) and gfx1250 and newer -> OCP  (HIP_R_8F_E4M3)
+// This mirrors ROCm's own selection in <hip/amd_detail/amd_hip_fp8.h>, where
+// HIP_FP8_TYPE_FNUZ is set only for gfx942 and HIP_FP8_TYPE_OCP for the rest.
+// The __gfx__ macros are device-only, so on the host we derive it from the
+// arch name (stripping any ":sramecc+:xnack-" feature suffix).
+inline std::string deviceArchName() {
     int device = 0;
     checkHipStatus(hipGetDevice(&device));
     hipDeviceProp_t prop;
     checkHipStatus(hipGetDeviceProperties(&prop, device));
-    return std::string(prop.gcnArchName).find("gfx95") != std::string::npos;
+    std::string arch(prop.gcnArchName);
+    return arch.substr(0, arch.find(':'));
+}
+
+inline bool fp8IsFnuz() {
+    const std::string arch = deviceArchName();
+    return arch == "gfx940" || arch == "gfx941" || arch == "gfx942";
+}
+
+inline bool fp8IsOcp() {
+    return !fp8IsFnuz();
 }
 
 // Encode a float into an 8-bit E4M3 code using the library FP8 types, which
