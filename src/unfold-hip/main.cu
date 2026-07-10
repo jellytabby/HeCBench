@@ -110,6 +110,7 @@ int main(int argc, char* argv[])
   hipMemcpy(d_idx_dim, &h_idx_dim, sizeof(int64_t), hipMemcpyHostToDevice); 
 
   hipMalloc((void**)&d_grad_out, output_size_bytes);
+  hipMemset(d_grad_out, 0, output_size_bytes);
 
   auto start = std::chrono::steady_clock::now();
 
