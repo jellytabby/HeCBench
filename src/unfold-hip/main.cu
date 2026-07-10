@@ -112,6 +112,7 @@ int main(int argc, char* argv[])
   hipMalloc((void**)&d_grad_out, output_size_bytes);
   hipMemset(d_grad_out, 0, output_size_bytes);
 
+  hipDeviceSynchronize();
   auto start = std::chrono::steady_clock::now();
 
   for (int i = 0; i < repeat; i++) {
