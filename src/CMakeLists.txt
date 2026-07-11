@@ -534,6 +534,7 @@ set(HECBENCH_POC_BENCHMARKS
     miniFE
     mergeVS
     mlp
+    muon
     pointerchase
     rmsnorm
     saxpy-ompt
