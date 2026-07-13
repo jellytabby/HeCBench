@@ -121,7 +121,11 @@ void reference (Classification_Data_CRS &A,
   }
 
   const float atol = 1e-4f; // absolute tolerance floor
-  const float rtol = 1e-3f; // relative tolerance
+  #ifdef UNSAFE_FP_ATOMICS
+  const float rtol = 5e-3f; // relative tolerance
+  #else
+  const float rtol = 1e-3f;
+  #endif
 
   float obj_diff = fabsf(obj_val - h_obj_val);
   float obj_bound = atol + rtol * fabsf(h_obj_val);
