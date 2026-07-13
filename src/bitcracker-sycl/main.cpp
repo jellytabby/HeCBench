@@ -41,6 +41,7 @@
 #include <iostream>
 #include <sycl/sycl.hpp>
 #include "bitcracker.h"
+#include "utils.h"
 
 uint32_t max_num_pswd_per_read = 0;
 

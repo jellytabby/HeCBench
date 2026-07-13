@@ -46,10 +46,10 @@ endif
 $(program): $(obj) Makefile
 	$(CC) $(CFLAGS) $(obj) -o $@ $(LDFLAGS)
 
-%.o: %.cu Makefile
+%.o: %.cu aes.h bitcracker.h utils.h Makefile
 	$(CC) $(CFLAGS) -c $< -o $@
 
-utils.o: utils.cpp Makefile
+utils.o: utils.cpp utils.h Makefile
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:

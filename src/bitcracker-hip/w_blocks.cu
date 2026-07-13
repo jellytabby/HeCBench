@@ -22,6 +22,7 @@
 #include <chrono>
 #include <iostream>
 #include "bitcracker.h"
+#include "utils.h"
 
 #define ROR(x, i) (((x) << (32 - (i))) | ((x) >> (i)))
 

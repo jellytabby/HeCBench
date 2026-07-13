@@ -19,7 +19,11 @@
  * along with BitCracker. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "bitcracker.h"
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "utils.h"
 
 /* John The Ripper function */
 char *strtokm(char *s1, const char *delims)

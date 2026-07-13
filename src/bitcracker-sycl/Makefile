@@ -30,7 +30,7 @@ obj = attack.o main.o w_blocks.o utils.o
 #===============================================================================
 
 # Standard Flags
-CFLAGS := $(EXTRA_CFLAGS) -std=c++17 -Wall -fsycl --gcc-toolchain=$(GCC_TOOLCHAIN)
+CFLAGS := $(EXTRA_CFLAGS) -std=c++17 -Wall -fsycl -I../bitcracker-cuda --gcc-toolchain=$(GCC_TOOLCHAIN)
 
 ifeq ($(VENDOR), AdaptiveCpp)
     CFLAGS_TMP := $(CFLAGS)
@@ -71,10 +71,10 @@ endif
 $(program): $(obj)
 	$(CC) $(CFLAGS) $(obj) -o $@ $(LDFLAGS)
 
-%.o: %.cpp *.h
+%.o: %.cpp *.h ../bitcracker-cuda/utils.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
-utils.o: ../bitcracker-cuda/utils.cpp
+utils.o: ../bitcracker-cuda/utils.cpp ../bitcracker-cuda/utils.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:

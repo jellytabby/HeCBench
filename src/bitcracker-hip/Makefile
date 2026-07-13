@@ -23,7 +23,7 @@ obj = attack.o main.o w_blocks.o utils.o
 #===============================================================================
 
 # Standard Flags
-CFLAGS := $(EXTRA_CFLAGS) -std=c++17 -Wall
+CFLAGS := $(EXTRA_CFLAGS) -std=c++17 -Wall -I../bitcracker-cuda
 
 # Linker Flags
 LDFLAGS = 
@@ -45,10 +45,10 @@ endif
 $(program): $(obj) Makefile
 	$(CC) $(CFLAGS) $(obj) -o $@ $(LDFLAGS)
 
-%.o: %.cu *.h Makefile
+%.o: %.cu *.h ../bitcracker-cuda/utils.h Makefile
 	$(CC) $(CFLAGS) -c $< -o $@
 
-utils.o: ../bitcracker-cuda/utils.cpp Makefile
+utils.o: ../bitcracker-cuda/utils.cpp ../bitcracker-cuda/utils.h Makefile
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
