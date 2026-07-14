@@ -465,6 +465,7 @@ set(HECBENCH_POC_BENCHMARKS
     attentionMultiHead
     attentionMultiHeadKVCache
     axhelm
+    awbarrier
     base64e
     bgmv
     bh
