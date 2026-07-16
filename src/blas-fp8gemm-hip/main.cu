@@ -17,7 +17,7 @@ static hipDataType selectFp8Type() {
 /// pointer mode is for alpha and beta is always host, to change it configure the appropriate matmul descriptor
 /// attribute matmul is not using hipblas handle's configuration of math mode, here tensor ops are implicitly allowed; to
 /// change this configure appropriate attribute in the preference handle
-void LtFp8Matmul(const int repeat,
+bool LtFp8Matmul(const int repeat,
                  hipblasLtHandle_t ltHandle,
                  int m,
                  int n,
@@ -75,7 +75,13 @@ void LtFp8Matmul(const int repeat,
 
     if (returnedResults == 0) {
         printf("no heuristic function available for current configuration\n");
-        return;
+        if (operationDesc) checkHipblasStatus(hipblasLtMatmulDescDestroy(operationDesc));
+        if (Adesc) checkHipblasStatus(hipblasLtMatrixLayoutDestroy(Adesc));
+        if (Bdesc) checkHipblasStatus(hipblasLtMatrixLayoutDestroy(Bdesc));
+        if (Cdesc) checkHipblasStatus(hipblasLtMatrixLayoutDestroy(Cdesc));
+        if (Ddesc) checkHipblasStatus(hipblasLtMatrixLayoutDestroy(Ddesc));
+        if (preference) checkHipblasStatus(hipblasLtMatmulPreferenceDestroy(preference));
+        return false;
     }
 
     // Warm up
@@ -120,6 +126,7 @@ void LtFp8Matmul(const int repeat,
     if (Bdesc) checkHipblasStatus(hipblasLtMatrixLayoutDestroy(Bdesc));
     if (Adesc) checkHipblasStatus(hipblasLtMatrixLayoutDestroy(Adesc));
     if (operationDesc) checkHipblasStatus(hipblasLtMatmulDescDestroy(operationDesc));
+    return true;
 }
 
 
@@ -152,8 +159,9 @@ int main(int argc, char *argv[])
                __hip_bfloat16,
                float> props(m, n, k, 1.0f, 0.0f, 32ULL * 1024 * 1024);
 
-     props.run([&props, repeat, fp8Type] {
-          LtFp8Matmul(repeat,
+     bool ok = false;
+     props.run([&props, repeat, fp8Type, &ok] {
+          ok = LtFp8Matmul(repeat,
                       props.ltHandle,
                       props.m,
                       props.n,
@@ -169,7 +177,10 @@ int main(int argc, char *argv[])
                       fp8Type);
       });
 
-     props.verify();
+     if (ok)
+       props.verify();
+     else
+       printf("Skipped: no hipBLASLt kernel available for this GPU and data-type combination\n");
     }
 
     return 0;
