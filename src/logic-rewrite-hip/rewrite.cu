@@ -335,7 +335,7 @@ __device__ void TableInsert(int in0, int in1, int C0, int C1, TableNode* hashTab
     key %= P;
     hashTable[P + index].val = idx;
     while(true) {
-        int res = atomicCAS(&hashTable[key].next, -1, P + index);
+        int res = atomicCASAcqRel(&hashTable[key].next, -1, P + index);
         if(res == -1)
             break;
         else
@@ -358,7 +358,8 @@ __device__ int TableLookup(int in0, int in1, int C0, int C1, TableNode* hashTabl
     key ^= C0 * 911;
     key ^= C1 * 353;
     key %= P;
-    for(int cur = hashTable[key].next; cur != -1; cur = hashTable[cur].next) {
+    for(int cur = atomicLoadAcquire(&hashTable[key].next); cur != -1;
+        cur = atomicLoadAcquire(&hashTable[cur].next)) {
         int val = hashTable[cur].val;
         if(fanin0[val] == in0 && fanin1[val] == in1 && isC0[val] == C0 && isC1[val] == C1)
             return val;
@@ -460,7 +461,7 @@ __global__ void BuildHashTable(TableNode *hashTable, int sz, int *fanin0, int *f
         key %= P;
         hashTable[P + index].val = id;
         while(true) {
-            int res = atomicCAS(&hashTable[key].next, -1, P + index);
+            int res = atomicCASAcqRel(&hashTable[key].next, -1, P + index);
             if(res == -1)
                 break;
             else
