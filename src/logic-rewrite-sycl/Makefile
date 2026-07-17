@@ -51,6 +51,9 @@ endif
 ifeq ($(HIP), yes)
   CFLAGS += -fsycl-targets=amdgcn-amd-amdhsa \
 	    -Xsycl-target-backend --offload-arch=$(HIP_ARCH)
+  # amdgcn libspirv lacks the __spirv_GroupNonUniform*Shuffle* builtins that
+  # oneDPL work-group scan relies on
+  source += amd_spirv_shim.cpp
 endif
 
 # Debug Flags
