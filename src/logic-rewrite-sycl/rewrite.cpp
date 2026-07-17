@@ -391,7 +391,8 @@ int TableLookup(int in0, int in1, int C0, int C1, TableNode* hashTable, int *fan
     key ^= C0 * 911;
     key ^= C1 * 353;
     key %= P;
-    for(int cur = hashTable[key].next; cur != -1; cur = hashTable[cur].next) {
+    for(int cur = nsycl::atomic_load(&hashTable[key].next); cur != -1;
+        cur = nsycl::atomic_load(&hashTable[cur].next)) {
         int val = hashTable[cur].val;
         if(fanin0[val] == in0 && fanin1[val] == in1 && isC0[val] == C0 && isC1[val] == C1)
             return val;
@@ -512,8 +513,7 @@ void EvaluateNode(int sz, int *bestout, int *fanin0, int *fanin1, int *isC0,
 void BuildHashTable(TableNode *hashTable, int sz, int *fanin0, int *fanin1, int *isC0, int *isC1,
                     int &P) {
     auto item_ct1 = sycl::ext::oneapi::this_work_item::get_nd_item<3>();
-    int index = item_ct1.get_local_range(2) * item_ct1.get_group(2) +
-                item_ct1.get_local_id(2);
+    int index = item_ct1.get_global_id(2);
     if(index < sz) {
         int id = index + 1;
         if(fanin0[id] == 0 && fanin1[id] == 0) return;

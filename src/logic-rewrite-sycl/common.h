@@ -69,14 +69,33 @@ inline T atomic_fetch_max(T *addr, U operand) {
 // Mimics CUDA atomicCAS: atomically
 // compares *addr with expected, storing desired on success, and returns the
 // value that was previously stored at addr.
+//
+// Uses acq_rel ordering: several call sites publish a node into a lock-free
+// linked list by CAS-ing a "next" pointer after having written the node's
+// payload with a plain store. The CAS must therefore act as a release so that
+// a concurrent reader which observes the published pointer (via atomic_load,
+// below) also observes the payload. On weakly-ordered GPUs (e.g. AMD) a relaxed
+// CAS would let the reader see the link before the payload and dereference a
+// stale value. (seq_cst is not supported on AMDGPU, so acq_rel is used.)
 template <typename T, typename U, typename V>
 inline T atomic_compare_exchange(T *addr, U expected, V desired) {
     T expected_value = static_cast<T>(expected);
-    sycl::atomic_ref<T, sycl::memory_order::relaxed, sycl::memory_scope::device,
+    sycl::atomic_ref<T, sycl::memory_order::acq_rel, sycl::memory_scope::device,
                      sycl::access::address_space::generic_space>
         ref(*addr);
     ref.compare_exchange_strong(expected_value, static_cast<T>(desired));
     return expected_value;
+}
+
+// Acquire-load, pairing with the release in atomic_compare_exchange above so
+// that observing a published pointer also makes the pointed-to payload visible.
+template <typename T>
+inline T atomic_load(const T *addr) {
+    return sycl::atomic_ref<T, sycl::memory_order::relaxed,
+                            sycl::memory_scope::device,
+                            sycl::access::address_space::generic_space>(
+               *const_cast<T *>(addr))
+        .load(sycl::memory_order::acquire);
 }
 
 // fills first[i] = init + i * step on the
