@@ -23,7 +23,7 @@
 /// A is stored (M,K) row-major and B is stored (N,K) row-major. To compute
 /// A @ B^T on the column-major hipBLASLt we use transa = OP_T, transb = OP_N so
 /// that A is interpreted as (K x M) and B as (K x N), producing D = (M x N).
-void LtFp4Matmul(const int repeat,
+bool LtFp4Matmul(const int repeat,
                  hipblasLtHandle_t ltHandle,
                  int m,
                  int n,
@@ -82,7 +82,7 @@ void LtFp4Matmul(const int repeat,
         if (Bdesc) hipblasLtMatrixLayoutDestroy(Bdesc);
         if (Adesc) hipblasLtMatrixLayoutDestroy(Adesc);
         if (operationDesc) hipblasLtMatmulDescDestroy(operationDesc);
-        return;
+        return false;
     }
 
     // Warm up
@@ -126,6 +126,7 @@ void LtFp4Matmul(const int repeat,
     if (Bdesc) checkHipblasStatus(hipblasLtMatrixLayoutDestroy(Bdesc));
     if (Adesc) checkHipblasStatus(hipblasLtMatrixLayoutDestroy(Adesc));
     if (operationDesc) checkHipblasStatus(hipblasLtMatmulDescDestroy(operationDesc));
+    return true;
 }
 
 // Runtime capability probe: ask hipBLASLt whether it has any algorithm for a
@@ -223,7 +224,7 @@ int main(int argc, char *argv[]) {
 
         Fp4TestBench props(m, n, k, 1.0f, 0.0f, 32ULL * 1024 * 1024);
 
-        LtFp4Matmul(repeat,
+        bool ran = LtFp4Matmul(repeat,
                     props.ltHandle,
                     props.m,
                     props.n,
@@ -236,7 +237,7 @@ int main(int argc, char *argv[]) {
                     props.workspace,
                     props.workspaceSize);
 
-        props.verify();
+        if (ran) props.verify();
     }
 
     return 0;

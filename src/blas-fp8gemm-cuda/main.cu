@@ -7,7 +7,7 @@
 /// pointer mode is for alpha and beta is always host, to change it configure the appropriate matmul descriptor
 /// attribute matmul is not using cublas handle's configuration of math mode, here tensor ops are implicitly allowed; to
 /// change this configure appropriate attribute in the preference handle
-void LtFp8Matmul(const int repeat,
+bool LtFp8Matmul(const int repeat,
                  cublasLtHandle_t ltHandle,
                  int m,
                  int n,
@@ -70,7 +70,13 @@ void LtFp8Matmul(const int repeat,
 
     if (returnedResults == 0) {
         printf("no heuristic function available for current configuration\n");
-        return;
+        if (operationDesc) checkCublasStatus(cublasLtMatmulDescDestroy(operationDesc));
+        if (Adesc) checkCublasStatus(cublasLtMatrixLayoutDestroy(Adesc));
+        if (Bdesc) checkCublasStatus(cublasLtMatrixLayoutDestroy(Bdesc));
+        if (Cdesc) checkCublasStatus(cublasLtMatrixLayoutDestroy(Cdesc));
+        if (Ddesc) checkCublasStatus(cublasLtMatrixLayoutDestroy(Ddesc));
+        if (preference) checkCublasStatus(cublasLtMatmulPreferenceDestroy(preference));
+        return false;
     }
 
     // Warm up
@@ -115,6 +121,7 @@ void LtFp8Matmul(const int repeat,
     if (Bdesc) checkCublasStatus(cublasLtMatrixLayoutDestroy(Bdesc));
     if (Adesc) checkCublasStatus(cublasLtMatrixLayoutDestroy(Adesc));
     if (operationDesc) checkCublasStatus(cublasLtMatmulDescDestroy(operationDesc));
+    return true;
 }
 
 
@@ -125,6 +132,17 @@ int main(int argc, char *argv[])
      return 1;
    }
    const int repeat = atoi(argv[1]);
+
+   // FP8 (E4M3) tensor-core matmul in cuBLASLt requires compute capability >= 9.0 (Hopper).
+   int device = 0;
+   checkCudaStatus(cudaGetDevice(&device));
+   cudaDeviceProp prop;
+   checkCudaStatus(cudaGetDeviceProperties(&prop, device));
+   if (prop.major < 9) {
+     printf("Skipped: FP8 matmul requires compute capability >= 9.0, found sm_%d%d (%s)\n",
+            prop.major, prop.minor, prop.name);
+     return 0;
+   }
 
    const int shapes[6][3] = {{16384, 8192, 1280},
                              {16384, 1024, 8192},
@@ -144,8 +162,9 @@ int main(int argc, char *argv[])
                __nv_bfloat16,  // output type
                float> props(m, n, k, 1.0f, 0.0f, 32ULL * 1024 * 1024);
 
-     props.run([&props, repeat] {
-          LtFp8Matmul(repeat,
+     bool ok = false;
+     props.run([&props, repeat, &ok] {
+          ok = LtFp8Matmul(repeat,
                       props.ltHandle,
                       props.m,
                       props.n,
@@ -160,7 +179,10 @@ int main(int argc, char *argv[])
                       props.workspaceSize);
       });
 
-     props.verify();
+     if (ok)
+       props.verify();
+     else
+       printf("Skipped: no cuBLASLt kernel available for this GPU and data-type combination\n");
     }
 
     return 0;

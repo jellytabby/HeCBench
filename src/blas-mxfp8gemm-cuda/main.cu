@@ -24,7 +24,7 @@
 /// A is stored (M,K) row-major and B is stored (N,K) row-major. To compute
 /// A @ B^T on the column-major cuBLASLt we use transa = OP_T, transb = OP_N so
 /// that A is interpreted as (K x M) and B as (K x N), producing D = (M x N).
-void LtMxfp8Matmul(const int repeat,
+bool LtMxfp8Matmul(const int repeat,
                    cublasLtHandle_t ltHandle,
                    int m,
                    int n,
@@ -83,7 +83,7 @@ void LtMxfp8Matmul(const int repeat,
         if (Bdesc) cublasLtMatrixLayoutDestroy(Bdesc);
         if (Adesc) cublasLtMatrixLayoutDestroy(Adesc);
         if (operationDesc) cublasLtMatmulDescDestroy(operationDesc);
-        return;
+        return false;
     }
 
     // Warm up
@@ -127,6 +127,7 @@ void LtMxfp8Matmul(const int repeat,
     if (Bdesc) checkCublasStatus(cublasLtMatrixLayoutDestroy(Bdesc));
     if (Adesc) checkCublasStatus(cublasLtMatrixLayoutDestroy(Adesc));
     if (operationDesc) checkCublasStatus(cublasLtMatmulDescDestroy(operationDesc));
+    return true;
 }
 
 #endif // MXFP8_GEMM_SUPPORTED
@@ -165,7 +166,7 @@ int main(int argc, char *argv[]) {
 
         Mxfp8TestBench props(m, n, k, 1.0f, 0.0f, 32ULL * 1024 * 1024);
 
-        LtMxfp8Matmul(repeat,
+        bool ran = LtMxfp8Matmul(repeat,
                       props.ltHandle,
                       props.m,
                       props.n,
@@ -178,7 +179,7 @@ int main(int argc, char *argv[]) {
                       props.workspace,
                       props.workspaceSize);
 
-        props.verify();
+        if (ran) props.verify();
     }
 
     return 0;
