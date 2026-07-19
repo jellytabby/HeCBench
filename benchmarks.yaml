@@ -265,7 +265,10 @@ bezier-surface:
 bfs:
   categories: [algorithms, graph]
   models: [cuda, hip, omp, sycl]
-  # No test metadata available
+  test:
+    regex: '(?:Total kernel execution time : )([0-9.+-e]+)(?: \(us\))'
+    args: ["../data/bfs/graph1MW_6.txt"]
+    timeout: 300
 
 bh:
   categories: [algorithms]
@@ -1669,7 +1672,10 @@ ludb:
 lulesh:
   categories: [algorithms]
   models: [cuda, hip, omp, sycl]
-  # No test metadata available
+  test:
+    regex: '(?:Elapsed time\s*=\s*)([0-9.+-e]+)(?: \(s\))'
+    args: ["-i", "100", "-s", "128", "-r", "11", "-b", "1", "-c", "1"]
+    timeout: 300
 
 lut-gemm:
   categories: [math]
@@ -2401,7 +2407,10 @@ rowwiseMoments:
 rsbench:
   categories: [algorithms]
   models: [cuda, hip, omp, sycl]
-  # No test metadata available
+  test:
+    regex: '(?:Runtime:\s+)([0-9.+-e]+)(?: seconds)'
+    args: ["-s", "large", "-m", "event"]
+    timeout: 300
 
 rsc:
   categories: [algorithms]
@@ -3001,7 +3010,10 @@ xlqc:
 xsbench:
   categories: [algorithms]
   models: [cuda, hip, omp, sycl]
-  # No test metadata available
+  test:
+    regex: '(?:Runtime:\s+)([0-9.+-e]+)(?: seconds)'
+    args: ["-s", "large", "-m", "event", "-r", "1"]
+    timeout: 300
 
 zerocopy:
   categories: [algorithms]

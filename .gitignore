@@ -13,6 +13,7 @@ dpct_output
 */main
 main
 *.tmp
+results/offloading/run-*/
 
 # Exclude text files except CMake and documentation
 *.txt
