@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <algorithm>
 #include <chrono>
 #include <hip/hip_runtime.h>
 #include <hip/hip_fp16.h>
@@ -19,6 +20,12 @@ static void CheckError( hipError_t err, const char *file, int line ) {
 #define ONE_FP16  __ushort_as_half((unsigned short)0x3c00U)
 #define ZERO_BF16 __ushort_as_bfloat16((unsigned short)0x0000U)
 #define ONE_BF16  __ushort_as_bfloat16((unsigned short)0x3f80U)
+
+// fp16: 10 explicit + 1 implicit mantissa bits → max exact int = 2048
+// bf16:  7 explicit + 1 implicit mantissa bits → max exact int = 256
+template<typename T> constexpr int maxExactInt();
+template<> constexpr int maxExactInt<__half>() { return 2048; }
+template<> constexpr int maxExactInt<__hip_bfloat16>() { return 256; }
 
 __global__
 void f16AtomicOnGlobalMem(__half* result, int n)
@@ -41,7 +48,23 @@ void f16AtomicOnGlobalMem(__hip_bfloat16* result, int n)
 }
 
 template <typename T>
-void atomicCost (int nelems, int repeat)
+bool verify(const T* result, int hits_per_slot)
+{
+  float expected = (float)std::min(hits_per_slot, maxExactInt<T>());
+  for (int i = 0; i < BLOCK_SIZE; i++) {
+    float even = (float)result[2 * i];
+    float odd  = (float)result[2 * i + 1];
+    if (even != 0.0f || odd != expected) {
+      printf("FAIL at slot %d: expected (0.0, %f), got (%f, %f)\n",
+             i, expected, even, odd);
+      return false;
+    }
+  }
+  return true;
+}
+
+template <typename T>
+bool atomicCost (int nelems, int repeat)
 {
   size_t result_size = sizeof(T) * BLOCK_SIZE * 2;
 
@@ -54,14 +77,21 @@ void atomicCost (int nelems, int repeat)
   dim3 block (BLOCK_SIZE);
   dim3 grid ((nelems / 2  + BLOCK_SIZE - 1) / BLOCK_SIZE);
 
-  //  warmup
   f16AtomicOnGlobalMem<<<grid, block>>>(d_result, nelems/2);
+  CHECK_ERROR( hipDeviceSynchronize() );
   CHECK_ERROR( hipMemcpy(result, d_result, result_size, hipMemcpyDeviceToHost) );
-  // nelems / 2 / BLOCK_SIZE
-  printf("Print the first two elements in HEX: 0x%04x 0x%04x\n", result[0], result[1]);
-  printf("Print the first two elements in FLOAT32: %f %f\n\n", (float)result[0], (float)result[1]);
 
+  int hits_per_slot = (nelems / 2 + BLOCK_SIZE - 1) / BLOCK_SIZE;
+  bool pass = verify(result, hits_per_slot);
+  printf("%s\n", pass ? "PASS" : "FAIL");
 
+  free(result);
+  if (!pass) {
+    CHECK_ERROR(hipFree(d_result));
+    return false;
+  }
+
+  CHECK_ERROR( hipMemset(d_result, 0, result_size) );
   CHECK_ERROR( hipDeviceSynchronize() );
   auto start = std::chrono::steady_clock::now();
   for(int i=0; i<repeat; i++)
@@ -73,8 +103,8 @@ void atomicCost (int nelems, int repeat)
   auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
   printf("Average execution time of 16-bit floating-point atomic add on global memory: %f (us)\n",
           time * 1e-3f / repeat);
-  free(result);
   CHECK_ERROR(hipFree(d_result));
+  return true;
 }
 
 int main(int argc, char* argv[])
@@ -90,10 +120,10 @@ int main(int argc, char* argv[])
   assert(nelems > 0 && (nelems % 2) == 0);
 
   printf("\nFP16 atomic add\n");
-  atomicCost<__half>(nelems, repeat);
+  bool fp16_pass = atomicCost<__half>(nelems, repeat);
 
   printf("\nBF16 atomic add\n");
-  atomicCost<__hip_bfloat16>(nelems, repeat);
+  bool bf16_pass = atomicCost<__hip_bfloat16>(nelems, repeat);
 
-  return 0;
+  return (fp16_pass && bf16_pass) ? 0 : 1;
 }
