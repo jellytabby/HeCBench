@@ -71,7 +71,7 @@ endif
 $(program): $(obj)
 	$(CC) $(CFLAGS) $(obj) -o $@ $(LDFLAGS)
 
-%.o: %.cpp
+%.o: %.cpp ../f16atomic-cuda/verification.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
